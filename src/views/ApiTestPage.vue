@@ -257,12 +257,16 @@ const getApis = async () => {
     const allApis = []
     const errorMessages = []
     
-    // 从两个地址获取API信息
+    // 从多个地址获取API信息
     for (const docUrl of docUrls) {
       try {
-        // 获取OpenAPI文档
+        // 获取OpenAPI文档，添加httpsAgent处理自签名证书
         const response = await axios.get(docUrl.url, {
-          timeout: 10000
+          timeout: 10000,
+          // 处理自签名HTTPS证书
+          httpsAgent: new (require('https').Agent)({ 
+            rejectUnauthorized: false 
+          })
         })
         
         // 提取API信息
@@ -282,7 +286,8 @@ const getApis = async () => {
         allApis.push(moduleApis)
       } catch (error) {
         console.error(`获取 ${docUrl.name} API列表失败:`, error)
-        errorMessages.push(`获取 ${docUrl.name} API列表失败: ${error.message}`)
+        // 只记录错误，不显示在界面上，避免影响用户体验
+        // errorMessages.push(`获取 ${docUrl.name} API列表失败: ${error.message}`)
       }
     }
     
@@ -291,8 +296,8 @@ const getApis = async () => {
     buildApiTree()
     
     // 只有当所有请求都失败时才显示错误信息
-    if (allApis.length === 0 && errorMessages.length > 0) {
-      loadError.value = errorMessages.join('\n')
+    if (allApis.length === 0) {
+      loadError.value = '无法从任何后端地址获取API列表，请检查网络连接和后端服务状态'
     }
   } catch (error) {
     console.error('获取API列表失败:', error)
