@@ -249,9 +249,8 @@ const getApis = async () => {
   try {
     // 后端文档地址
     const docUrls = [
-      { url: 'https://127.0.0.1:8002/api/v1/subapi/docs', name: '子API服务' },
-      { url: 'https://0.0.0.0:8443/api/v1/docs', name: '主API服务' },
-      { url: 'https://localhost:8443/openapi.json', name: 'OpenAPI文档' }
+      { url: 'http://localhost:8001/api/v1/subapi/openapi.json', name: '子API服务' },
+      { url: 'http://localhost:8001/api/v1/openapi.json', name: '主API服务' }
     ]
     
     const allApis = []
@@ -260,13 +259,9 @@ const getApis = async () => {
     // 从多个地址获取API信息
     for (const docUrl of docUrls) {
       try {
-        // 获取OpenAPI文档，添加httpsAgent处理自签名证书
+        // 获取OpenAPI文档
         const response = await axios.get(docUrl.url, {
-          timeout: 10000,
-          // 处理自签名HTTPS证书
-          httpsAgent: new (require('https').Agent)({ 
-            rejectUnauthorized: false 
-          })
+          timeout: 10000
         })
         
         // 提取API信息
@@ -349,22 +344,18 @@ const sendRequest = async () => {
   
   try {
     // 构建完整的后端URL
-    const baseUrl = 'https://0.0.0.0:8443'
+    const baseUrl = 'http://localhost:8001'
     const path = selectedApi.value.path
     const url = `${baseUrl}${path}`
     const method = selectedApi.value.method
     
-    // 构建请求配置，添加httpsAgent处理自签名证书
+    // 构建请求配置
     const config = {
       url,
       method,
       params: method === 'GET' ? requestParams : {},
       data: method !== 'GET' ? requestParams : {},
-      timeout: 10000,
-      // 处理自签名HTTPS证书
-      httpsAgent: new (require('https').Agent)({ 
-        rejectUnauthorized: false 
-      })
+      timeout: 10000
     }
     
     const res = await axios(config)
