@@ -2,6 +2,18 @@
   <div class="api-test-page">
     <h2 class="page-title">API接口测试</h2>
     
+    <!-- HTTPS证书处理说明 -->
+    <el-alert
+      title="HTTPS证书说明"
+      type="warning"
+      description="当前后端使用自签名HTTPS证书，您可能需要手动信任证书才能获取API列表。请在浏览器中分别访问以下地址并信任证书：
+        1. https://127.0.0.1:8002/api/v1/subapi/docs
+        2. https://0.0.0.0:8443/api/v1/docs"
+      show-icon
+      :closable="false"
+      class="https-alert"
+    ></el-alert>
+    
     <div class="api-test-container">
       <!-- API列表 -->
       <el-card class="api-list-card">
@@ -242,6 +254,7 @@ const getApis = async () => {
     ]
     
     const allApis = []
+    const errorMessages = []
     
     // 从两个地址获取API信息
     for (const docUrl of docUrls) {
@@ -268,129 +281,22 @@ const getApis = async () => {
         allApis.push(moduleApis)
       } catch (error) {
         console.error(`获取 ${docUrl.name} API列表失败:`, error)
-        loadError.value = `获取 ${docUrl.name} API列表失败: ${error.message}`
+        errorMessages.push(`获取 ${docUrl.name} API列表失败: ${error.message}`)
       }
     }
     
-    // 如果所有请求都失败，使用模拟数据
-    if (allApis.length === 0) {
-      apis.value = [
-        {
-          id: '子API服务',
-          name: '子API服务',
-          method: null,
-          path: null,
-          description: '子API服务相关接口',
-          parameters: [],
-          children: [
-            {
-              id: 'GET-/api/v1/subapi/test',
-              name: '测试接口',
-              method: 'GET',
-              path: '/api/v1/subapi/test',
-              description: '子API测试接口',
-              parameters: [
-                { name: 'param1', type: 'string', required: false, description: '测试参数1' },
-                { name: 'param2', type: 'number', required: false, description: '测试参数2' }
-              ]
-            }
-          ]
-        },
-        {
-          id: '主API服务',
-          name: '主API服务',
-          method: null,
-          path: null,
-          description: '主API服务相关接口',
-          parameters: [],
-          children: [
-            {
-              id: 'GET-/api/v1/documents',
-              name: '获取文档列表',
-              method: 'GET',
-              path: '/api/v1/documents',
-              description: '获取所有文档列表',
-              parameters: [
-                { name: 'page', type: 'number', required: false, description: '页码' },
-                { name: 'pageSize', type: 'number', required: false, description: '每页数量' }
-              ]
-            },
-            {
-              id: 'POST-/api/v1/chat/stream',
-              name: '发送消息',
-              method: 'POST',
-              path: '/api/v1/chat/stream',
-              description: '发送消息并获取流式响应',
-              parameters: [
-                { name: 'message', type: 'string', required: true, description: '消息内容' }
-              ]
-            }
-          ]
-        }
-      ]
-    } else {
-      apis.value = allApis
-    }
+    // 设置API列表
+    apis.value = allApis
     buildApiTree()
+    
+    // 只有当所有请求都失败时才显示错误信息
+    if (allApis.length === 0 && errorMessages.length > 0) {
+      loadError.value = errorMessages.join('\n')
+    }
   } catch (error) {
     console.error('获取API列表失败:', error)
     loadError.value = `获取API列表失败: ${error.message}`
-    
-    // 使用模拟数据
-    apis.value = [
-      {
-        id: '子API服务',
-        name: '子API服务',
-        method: null,
-        path: null,
-        description: '子API服务相关接口',
-        parameters: [],
-        children: [
-          {
-            id: 'GET-/api/v1/subapi/test',
-            name: '测试接口',
-            method: 'GET',
-            path: '/api/v1/subapi/test',
-            description: '子API测试接口',
-            parameters: [
-              { name: 'param1', type: 'string', required: false, description: '测试参数1' },
-              { name: 'param2', type: 'number', required: false, description: '测试参数2' }
-            ]
-          }
-        ]
-      },
-      {
-        id: '主API服务',
-        name: '主API服务',
-        method: null,
-        path: null,
-        description: '主API服务相关接口',
-        parameters: [],
-        children: [
-          {
-            id: 'GET-/api/v1/documents',
-            name: '获取文档列表',
-            method: 'GET',
-            path: '/api/v1/documents',
-            description: '获取所有文档列表',
-            parameters: [
-              { name: 'page', type: 'number', required: false, description: '页码' },
-              { name: 'pageSize', type: 'number', required: false, description: '每页数量' }
-            ]
-          },
-          {
-            id: 'POST-/api/v1/chat/stream',
-            name: '发送消息',
-            method: 'POST',
-            path: '/api/v1/chat/stream',
-            description: '发送消息并获取流式响应',
-            parameters: [
-              { name: 'message', type: 'string', required: true, description: '消息内容' }
-            ]
-          }
-        ]
-      }
-    ]
+    apis.value = []
     buildApiTree()
   } finally {
     isLoading.value = false
@@ -894,6 +800,26 @@ const copyResponse = () => {
   gap: 12px;
   padding: 40px 0;
   color: #f56c6c;
+}
+
+/* HTTPS证书说明样式 */
+.https-alert {
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.dark-theme .https-alert {
+  background-color: rgba(250, 173, 20, 0.1);
+  border-color: rgba(250, 173, 20, 0.3);
+  color: var(--tech-text-primary);
+}
+
+.dark-theme .el-alert__title {
+  color: var(--tech-text-primary);
+}
+
+.dark-theme .el-alert__description {
+  color: var(--tech-text-secondary);
 }
 
 /* 滚动条样式 */
