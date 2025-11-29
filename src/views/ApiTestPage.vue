@@ -343,16 +343,23 @@ const sendRequest = async () => {
   const startTime = Date.now()
   
   try {
-    const url = selectedApi.value.path
+    // 构建完整的后端URL
+    const baseUrl = 'https://0.0.0.0:8443'
+    const path = selectedApi.value.path
+    const url = `${baseUrl}${path}`
     const method = selectedApi.value.method
     
-    // 构建请求配置
+    // 构建请求配置，添加httpsAgent处理自签名证书
     const config = {
       url,
       method,
       params: method === 'GET' ? requestParams : {},
       data: method !== 'GET' ? requestParams : {},
-      timeout: 10000
+      timeout: 10000,
+      // 处理自签名HTTPS证书
+      httpsAgent: new (require('https').Agent)({ 
+        rejectUnauthorized: false 
+      })
     }
     
     const res = await axios(config)
