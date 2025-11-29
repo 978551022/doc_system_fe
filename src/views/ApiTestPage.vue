@@ -600,6 +600,62 @@ const copyResponse = () => {
     color: var(--tech-text-primary);
   }
   
+  /* 修复不同类型标签的深色主题样式 */
+  .el-tag--success {
+    background-color: rgba(103, 194, 58, 0.2);
+    border-color: rgba(103, 194, 58, 0.4);
+    color: #67c23a;
+  }
+  
+  .el-tag--primary {
+    background-color: rgba(102, 126, 234, 0.2);
+    border-color: rgba(102, 126, 234, 0.4);
+    color: #667eea;
+  }
+  
+  .el-tag--warning {
+    background-color: rgba(250, 173, 20, 0.2);
+    border-color: rgba(250, 173, 20, 0.4);
+    color: #fadb14;
+  }
+  
+  .el-tag--danger {
+    background-color: rgba(245, 108, 108, 0.2);
+    border-color: rgba(245, 108, 108, 0.4);
+    color: #f56c6c;
+  }
+  
+  /* 修复light类型标签的深色主题样式 */
+  .el-tag--light {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--tech-text-primary);
+  }
+  
+  .el-tag--success.el-tag--light {
+    background-color: rgba(103, 194, 58, 0.2);
+    border-color: rgba(103, 194, 58, 0.4);
+    color: #67c23a;
+  }
+  
+  .el-tag--primary.el-tag--light {
+    background-color: rgba(102, 126, 234, 0.2);
+    border-color: rgba(102, 126, 234, 0.4);
+    color: #667eea;
+  }
+  
+  .el-tag--warning.el-tag--light {
+    background-color: rgba(250, 173, 20, 0.2);
+    border-color: rgba(250, 173, 20, 0.4);
+    color: #fadb14;
+  }
+  
+  .el-tag--danger.el-tag--light {
+    background-color: rgba(245, 108, 108, 0.2);
+    border-color: rgba(245, 108, 108, 0.4);
+    color: #f56c6c;
+  }
+  
   /* 修复表单样式 */
   .el-form-item__label {
     color: var(--tech-text-primary);
@@ -610,9 +666,28 @@ const copyResponse = () => {
     color: var(--tech-text-primary);
   }
   
+  .el-input__wrapper {
+    background-color: var(--tech-card-bg);
+    border-color: var(--tech-border);
+  }
+  
   .el-input__inner {
     color: var(--tech-text-primary);
-    background-color: transparent;
+    background-color: var(--tech-card-bg);
+  }
+  
+  .el-input__inner::placeholder {
+    color: var(--tech-text-muted);
+  }
+  
+  .el-input__wrapper:hover {
+    border-color: #818cf8;
+    box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);
+  }
+  
+  .el-input__wrapper.is-focus {
+    border-color: #818cf8;
+    box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);
   }
   
   /* 修复按钮样式 */
