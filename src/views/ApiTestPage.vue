@@ -250,7 +250,8 @@ const getApis = async () => {
     // 后端文档地址
     const docUrls = [
       { url: 'https://127.0.0.1:8002/api/v1/subapi/docs', name: '子API服务' },
-      { url: 'https://0.0.0.0:8443/api/v1/docs', name: '主API服务' }
+      { url: 'https://0.0.0.0:8443/api/v1/docs', name: '主API服务' },
+      { url: 'https://localhost:8443/openapi.json', name: 'OpenAPI文档' }
     ]
     
     const allApis = []
