@@ -2,17 +2,7 @@
   <div class="api-test-page">
     <h2 class="page-title">API接口测试</h2>
     
-    <!-- HTTPS证书处理说明 -->
-    <el-alert
-      title="HTTPS证书说明"
-      type="warning"
-      description="当前后端使用自签名HTTPS证书，您可能需要手动信任证书才能获取API列表。请在浏览器中分别访问以下地址并信任证书：
-        1. https://127.0.0.1:8002/api/v1/subapi/docs
-        2. https://0.0.0.0:8443/api/v1/docs"
-      show-icon
-      :closable="false"
-      class="https-alert"
-    ></el-alert>
+
     
     <div class="api-test-container">
       <!-- API列表 -->
@@ -125,9 +115,16 @@
                 </el-tag>
                 <span class="response-time">{{ response.time }}ms</span>
               </div>
-              <el-button type="text" @click="copyResponse">
-                <i class="el-icon-document-copy"></i> 复制
-              </el-button>
+              <div class="response-format">
+                <el-select v-model="responseFormat" placeholder="选择格式" size="small" @change="handleFormatChange">
+                  <el-option label="JSON" value="json"></el-option>
+                  <el-option label="XML" value="xml"></el-option>
+                  <el-option label="文本" value="text"></el-option>
+                </el-select>
+                <el-button type="text" @click="copyResponse" style="margin-left: 10px;">
+                  <i class="el-icon-document-copy"></i> 复制
+                </el-button>
+              </div>
             </div>
             <pre class="api-detail__response-body">{{ formatResponse(response.data) }}</pre>
           </div>
@@ -162,6 +159,9 @@ const loadError = ref(null)
 
 // 请求参数
 const requestParams = reactive({})
+
+// 响应结果格式
+const responseFormat = ref('json')
 
 // API树配置
 const apiTreeProps = {
@@ -387,7 +387,37 @@ const resetRequest = () => {
 
 // 格式化响应数据
 const formatResponse = (data) => {
-  return JSON.stringify(data, null, 2)
+  if (!data) return ''
+  
+  try {
+    switch (responseFormat.value) {
+      case 'json':
+        // 尝试解析为JSON对象，然后格式化
+        const jsonData = typeof data === 'string' ? JSON.parse(data) : data
+        return JSON.stringify(jsonData, null, 2)
+      case 'xml':
+        // 如果是XML字符串，直接返回；否则尝试转换为XML
+        if (typeof data === 'string' && data.trim().startsWith('<')) {
+          return data
+        } else {
+          // 简单的XML转换，实际项目中可能需要更复杂的转换
+          return `<response>${JSON.stringify(data)}</response>`
+        }
+      case 'text':
+        // 直接返回文本
+        return typeof data === 'string' ? data : JSON.stringify(data)
+      default:
+        return JSON.stringify(data, null, 2)
+    }
+  } catch (error) {
+    // 如果格式化失败，返回原始数据
+    return typeof data === 'string' ? data : JSON.stringify(data)
+  }
+}
+
+// 处理响应格式变化
+const handleFormatChange = () => {
+  // 格式变化时不需要额外操作，formatResponse函数会自动根据responseFormat的值进行格式化
 }
 
 // 复制响应结果
@@ -803,25 +833,7 @@ const copyResponse = () => {
   color: #f56c6c;
 }
 
-/* HTTPS证书说明样式 */
-.https-alert {
-  margin-bottom: 20px;
-  transition: all 0.3s ease;
-}
 
-.dark-theme .https-alert {
-  background-color: rgba(250, 173, 20, 0.1);
-  border-color: rgba(250, 173, 20, 0.3);
-  color: var(--tech-text-primary);
-}
-
-.dark-theme .el-alert__title {
-  color: var(--tech-text-primary);
-}
-
-.dark-theme .el-alert__description {
-  color: var(--tech-text-secondary);
-}
 
 /* 滚动条样式 */
 .dark-theme ::-webkit-scrollbar {
