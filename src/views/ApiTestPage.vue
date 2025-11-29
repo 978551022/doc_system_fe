@@ -345,7 +345,13 @@ const sendRequest = async () => {
   try {
     // 构建完整的后端URL
     const baseUrl = 'http://localhost:8001'
-    const path = selectedApi.value.path
+    let path = selectedApi.value.path
+    
+    // 确保path以/开头
+    if (!path.startsWith('/')) {
+      path = `/${path}`
+    }
+    
     const url = `${baseUrl}${path}`
     const method = selectedApi.value.method
     
@@ -483,8 +489,13 @@ const copyResponse = () => {
     color: var(--tech-text-primary);
   }
   
+  .el-tree-node {
+    background-color: transparent;
+  }
+  
   .el-tree-node__content {
     color: var(--tech-text-primary);
+    background-color: transparent;
   }
   
   .el-tree-node__label {
@@ -523,6 +534,7 @@ const copyResponse = () => {
   
   .el-option {
     color: var(--tech-text-primary);
+    background-color: var(--tech-card-bg);
   }
   
   .el-option:hover {
@@ -541,6 +553,97 @@ const copyResponse = () => {
   
   .el-alert__description {
     color: var(--tech-text-secondary);
+  }
+  
+  /* 修复表格样式 */
+  .el-table {
+    background-color: transparent;
+    color: var(--tech-text-primary);
+  }
+  
+  .el-table__header-wrapper {
+    background-color: transparent;
+  }
+  
+  .el-table__body-wrapper {
+    background-color: transparent;
+  }
+  
+  .el-table__header {
+    background-color: transparent;
+  }
+  
+  .el-table__body {
+    background-color: transparent;
+  }
+  
+  .el-table__row {
+    background-color: transparent;
+  }
+  
+  .el-table__row:nth-child(odd) {
+    background-color: transparent;
+  }
+  
+  .el-table__row:nth-child(even) {
+    background-color: rgba(102, 126, 234, 0.05);
+  }
+  
+  .el-table__cell {
+    background-color: transparent;
+    color: var(--tech-text-primary);
+    border-bottom-color: var(--tech-border);
+  }
+  
+  /* 修复标签样式 */
+  .el-tag {
+    color: var(--tech-text-primary);
+  }
+  
+  /* 修复表单样式 */
+  .el-form-item__label {
+    color: var(--tech-text-primary);
+  }
+  
+  /* 修复输入框样式 */
+  .el-input {
+    color: var(--tech-text-primary);
+  }
+  
+  .el-input__inner {
+    color: var(--tech-text-primary);
+    background-color: transparent;
+  }
+  
+  /* 修复按钮样式 */
+  .el-button--text {
+    color: var(--tech-text-primary);
+  }
+  
+  /* 修复卡片样式 */
+  .el-card__header {
+    background-color: var(--tech-card-header-bg);
+    border-color: var(--tech-border);
+    color: var(--tech-text-primary);
+  }
+  
+  /* 修复空状态样式 */
+  .api-detail-empty {
+    color: var(--tech-text-muted);
+  }
+  
+  .api-detail-empty i {
+    color: var(--tech-text-muted);
+  }
+  
+  /* 修复加载状态样式 */
+  .api-loading {
+    color: var(--tech-text-secondary);
+  }
+  
+  /* 修复错误状态样式 */
+  .api-error {
+    color: #f56c6c;
   }
 }
 
@@ -692,6 +795,20 @@ const copyResponse = () => {
     box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
     font-size: 13px;
     line-height: 1.6;
+  }
+  
+  /* 确保响应结果在浅色主题下也有良好的可读性 */
+  .api-detail__response-body {
+    background-color: #f5f7fa;
+    color: #303133;
+    border: 1px solid #ebeef5;
+  }
+  
+  /* 深色主题下的响应结果样式 */
+  .dark-theme .api-detail__response-body {
+    background-color: var(--tech-card-header-bg);
+    color: var(--tech-text-primary);
+    border: 1px solid var(--tech-border);
   }
   
   .api-detail-empty {
@@ -857,6 +974,13 @@ const copyResponse = () => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  flex-wrap: nowrap;
+}
+
+.response-format {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .response-status {
