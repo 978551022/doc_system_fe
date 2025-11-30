@@ -182,8 +182,12 @@ const extractApisFromOpenAPI = (openapiData, baseUrl) => {
   const schemas = components.schemas || {}
   const securitySchemes = components.securitySchemes || {}
   
+  console.log('处理OpenAPI文档，路径数量:', Object.keys(paths).length)
+  
   // 遍历所有路径
   for (const [path, pathItem] of Object.entries(paths)) {
+    console.log('处理路径:', path)
+    
     // 遍历路径下的所有方法
     for (const [method, operation] of Object.entries(pathItem)) {
       if (typeof operation === 'object') {
@@ -225,7 +229,7 @@ const extractApisFromOpenAPI = (openapiData, baseUrl) => {
         // 构建API信息
         const api = {
           id: `${method}-${path}`,
-          name: operation.summary || `${method} ${path}`,
+          name: operation.summary || `${method.toUpperCase()} ${path}`,
           method: method.toUpperCase(),
           path: path,
           description: operation.description || '',
@@ -233,11 +237,13 @@ const extractApisFromOpenAPI = (openapiData, baseUrl) => {
           baseUrl: baseUrl
         }
         
+        console.log('提取API:', api)
         apis.push(api)
       }
     }
   }
   
+  console.log('最终提取的API数量:', apis.length)
   return apis
 }
 
@@ -364,6 +370,8 @@ const sendRequest = async () => {
       timeout: 10000
     }
     
+    console.log('发送API请求:', config)
+    
     const res = await axios(config)
     const endTime = Date.now()
     
@@ -375,10 +383,17 @@ const sendRequest = async () => {
   } catch (error) {
     const endTime = Date.now()
     
+    console.error('API请求失败:', error)
+    
     response.value = {
       status: error.response ? error.response.status : 500,
       time: endTime - startTime,
-      data: error.response ? error.response.data : { error: error.message }
+      data: error.response ? error.response.data : { 
+        error: error.message,
+        details: error.code,
+        url: error.config?.url,
+        method: error.config?.method
+      }
     }
   } finally {
     isRequesting.value = false
@@ -450,6 +465,8 @@ const copyResponse = () => {
   --tech-bg: #0f172a;
   --tech-card-bg: #1e293b;
   --tech-card-header-bg: #334155;
+  --tech-button-bg: #334155;
+  --tech-button-hover-bg: #475569;
   --tech-text-primary: #f8fafc;
   --tech-text-secondary: #cbd5e1;
   --tech-text-muted: #94a3b8;
@@ -458,6 +475,23 @@ const copyResponse = () => {
   --tech-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
   --tech-shadow-hover: 0 12px 48px rgba(0, 0, 0, 0.4);
   --tech-glow: 0 0 20px rgba(102, 126, 234, 0.3);
+}
+
+/* 浅色主题变量 */
+:root:not(.dark-theme) {
+  --tech-bg: #f5f7fa;
+  --tech-card-bg: #ffffff;
+  --tech-card-header-bg: #f5f7fa;
+  --tech-button-bg: #f5f7fa;
+  --tech-button-hover-bg: #e9ecef;
+  --tech-text-primary: #303133;
+  --tech-text-secondary: #606266;
+  --tech-text-muted: #909399;
+  --tech-border: #dcdfe6;
+  --tech-border-light: #e4e7ed;
+  --tech-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --tech-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --tech-glow: 0 0 15px rgba(102, 126, 234, 0.2);
 }
 
 /* 深色主题样式 */
@@ -662,37 +696,95 @@ const copyResponse = () => {
   }
   
   /* 修复输入框样式 */
-  .el-input {
-    color: var(--tech-text-primary);
-  }
+.el-input {
+  color: var(--tech-text-primary);
+}
+
+.el-input__wrapper {
+  background-color: var(--tech-card-bg) !important;
+  border-color: var(--tech-border) !important;
+  box-shadow: none !important;
+}
+
+.el-input__inner {
+  color: var(--tech-text-primary) !important;
+  background-color: var(--tech-card-bg) !important;
+}
+
+.el-input__inner::placeholder {
+  color: var(--tech-text-muted) !important;
+}
+
+.el-input__wrapper:hover {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 15px rgba(129, 140, 248, 0.3) !important;
+}
+
+.el-input__wrapper.is-focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 15px rgba(129, 140, 248, 0.3) !important;
+}
+
+/* 确保所有输入相关组件都使用正确的样式 */
+.el-form-item {
+  color: var(--tech-text-primary);
+}
+
+.el-form-item__label {
+  color: var(--tech-text-primary) !important;
+}
+
+/* 修复选择器样式 */
+.el-select {
+  color: var(--tech-text-primary);
+}
+
+.el-select__wrapper {
+  background-color: var(--tech-card-bg) !important;
+  border-color: var(--tech-border) !important;
+}
+
+.el-select__input {
+  color: var(--tech-text-primary) !important;
+}
+
+.el-select-dropdown {
+  background-color: var(--tech-card-bg) !important;
+  border-color: var(--tech-border) !important;
+}
+
+.el-option {
+  color: var(--tech-text-primary) !important;
+  background-color: var(--tech-card-bg) !important;
+}
+
+.el-option:hover {
+  background-color: var(--tech-card-header-bg) !important;
+}
   
-  .el-input__wrapper {
-    background-color: var(--tech-card-bg);
+  /* 修复按钮样式 */
+  .el-button {
+    color: var(--tech-text-primary);
+    background-color: var(--tech-card-header-bg);
     border-color: var(--tech-border);
   }
   
-  .el-input__inner {
+  .el-button--primary {
+    background: var(--tech-gradient);
+    border: none;
     color: var(--tech-text-primary);
-    background-color: var(--tech-card-bg);
   }
   
-  .el-input__inner::placeholder {
-    color: var(--tech-text-muted);
-  }
-  
-  .el-input__wrapper:hover {
-    border-color: #818cf8;
-    box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);
-  }
-  
-  .el-input__wrapper.is-focus {
-    border-color: #818cf8;
-    box-shadow: 0 0 15px rgba(129, 140, 248, 0.3);
-  }
-  
-  /* 修复按钮样式 */
   .el-button--text {
     color: var(--tech-text-primary);
+    background-color: transparent;
+    border-color: transparent;
+  }
+  
+  .el-button--text:hover {
+    color: #818cf8;
+    background-color: rgba(129, 140, 248, 0.1);
+    border-color: transparent;
   }
   
   /* 修复卡片样式 */
@@ -760,20 +852,78 @@ const copyResponse = () => {
   
   .el-button {
     border-radius: 8px;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: linear-gradient(135deg, var(--tech-button-bg) 0%, var(--tech-button-hover-bg) 100%);
+    border: 1px solid var(--tech-border);
+    color: var(--tech-text-primary);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .el-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(129, 140, 248, 0.2), transparent);
+    transition: all 0.5s ease;
+  }
+  
+  .el-button:hover::before {
+    left: 100%;
+  }
+  
+  .el-button:hover {
+    background: linear-gradient(135deg, var(--tech-button-hover-bg) 0%, var(--tech-button-bg) 100%);
+    border-color: #818cf8;
+    box-shadow: 0 4px 16px rgba(129, 140, 248, 0.3), 0 0 20px rgba(129, 140, 248, 0.15);
+    transform: translateY(-2px);
+  }
+  
+  .el-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(129, 140, 248, 0.2);
   }
   
   .el-button--primary {
     background: var(--tech-gradient);
     border: none;
-    box-shadow: var(--tech-glow);
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.3), 0 0 20px rgba(102, 126, 234, 0.15);
+    color: var(--tech-text-primary);
   }
   
   .el-button--primary:hover {
     background: var(--tech-gradient-light);
-    box-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
-    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(102, 126, 234, 0.4), 0 0 30px rgba(102, 126, 234, 0.25);
+    transform: translateY(-2px);
   }
+  
+  .el-button--primary::before {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  }
+  
+  .el-button--text {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    color: var(--tech-text-primary);
+  }
+  
+  .el-button--text:hover {
+    background: rgba(129, 140, 248, 0.1);
+    border: none;
+    box-shadow: 0 0 15px rgba(129, 140, 248, 0.2);
+    color: #818cf8;
+  }
+  
+  .el-button--text::before {
+    background: linear-gradient(90deg, transparent, rgba(129, 140, 248, 0.3), transparent);
+  }
+  
+  /* 浅色主题下的按钮样式已通过CSS变量统一处理，无需额外定义 */
   
   .api-tree-node {
     gap: 10px;
@@ -921,6 +1071,8 @@ const copyResponse = () => {
   width: 100%;
   min-height: 100vh;
   padding: 20px;
+  background-color: var(--tech-bg);
+  color: var(--tech-text-primary);
   transition: all 0.3s ease;
 }
 
@@ -935,11 +1087,12 @@ const copyResponse = () => {
   display: flex;
   gap: 20px;
   height: calc(100vh - 180px);
+  background-color: var(--tech-bg);
   transition: all 0.3s ease;
 }
 
 .api-list-card {
-  width: 400px;
+  width: 500px;
   overflow-y: auto;
   transition: all 0.3s ease;
 }
@@ -990,12 +1143,12 @@ const copyResponse = () => {
   font-size: 18px;
   font-weight: 600;
   margin-bottom: 8px;
-  color: #303133;
+  color: var(--tech-text-primary);
   transition: all 0.3s ease;
 }
 
 .api-detail__description {
-  color: #606266;
+  color: var(--tech-text-secondary);
   margin-bottom: 12px;
   line-height: 1.5;
   transition: all 0.3s ease;
@@ -1018,6 +1171,9 @@ const copyResponse = () => {
 
 .api-detail__params {
   margin-bottom: 20px;
+  background-color: var(--tech-card-bg);
+  padding: 16px;
+  border-radius: 8px;
 }
 
 .api-detail__params h4,
@@ -1026,22 +1182,31 @@ const copyResponse = () => {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 12px;
-  color: #303133;
+  color: var(--tech-text-primary);
   padding-bottom: 8px;
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--tech-border-light);
   transition: all 0.3s ease;
 }
 
 .api-detail__form {
   margin-bottom: 20px;
+  background-color: var(--tech-card-bg);
+  padding: 16px;
+  border-radius: 8px;
 }
 
 .api-detail__actions {
   margin-bottom: 20px;
+  background-color: var(--tech-card-bg);
+  padding: 16px;
+  border-radius: 8px;
 }
 
 .api-detail__response {
   margin-top: 20px;
+  background-color: var(--tech-card-bg);
+  padding: 16px;
+  border-radius: 8px;
 }
 
 .api-detail__response-header {
@@ -1065,21 +1230,23 @@ const copyResponse = () => {
 }
 
 .response-time {
-  color: #909399;
+  color: var(--tech-text-muted);
   font-size: 14px;
   transition: all 0.3s ease;
 }
 
 .api-detail__response-body {
-  background-color: #f5f7fa;
+  background-color: var(--tech-card-header-bg);
   padding: 16px;
-  border-radius: 4px;
+  border-radius: 8px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
   line-height: 1.5;
   overflow-x: auto;
   white-space: pre-wrap;
   word-wrap: break-word;
+  color: var(--tech-text-primary);
+  border: 1px solid var(--tech-border);
   transition: all 0.3s ease;
 }
 
@@ -1089,14 +1256,15 @@ const copyResponse = () => {
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: #909399;
+  color: var(--tech-text-muted);
+  background-color: var(--tech-card-bg);
   transition: all 0.3s ease;
 }
 
 .api-detail-empty i {
   font-size: 48px;
   margin-bottom: 16px;
-  color: #c0c4cc;
+  color: var(--tech-text-muted);
   transition: all 0.3s ease;
 }
 
@@ -1107,7 +1275,8 @@ const copyResponse = () => {
   justify-content: center;
   gap: 12px;
   padding: 40px 0;
-  color: #606266;
+  color: var(--tech-text-secondary);
+  background-color: var(--tech-card-bg);
 }
 
 .api-error {
@@ -1117,6 +1286,7 @@ const copyResponse = () => {
   gap: 12px;
   padding: 40px 0;
   color: #f56c6c;
+  background-color: var(--tech-card-bg);
 }
 
 
