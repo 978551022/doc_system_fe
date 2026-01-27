@@ -216,7 +216,8 @@ const selectedTool = ref(null)
 const models = ref([
   { id: 'deepseek', name: 'DeepSeek', icon: 'el-icon-chat-dot-round' },
   { id: 'glm', name: 'GLM-4.5-Flash', icon: 'el-icon-chat-dot-round' },
-  { id: 'qwen', name: 'Qwen 2', icon: 'el-icon-chat-dot-round' }
+  { id: 'qwen', name: 'Qwen 2', icon: 'el-icon-chat-dot-round' },
+  { id: 'llama3', name: 'Llama 3', icon: 'el-icon-chat-dot-round' }
 ])
 
 // 当前选中的模型
@@ -295,9 +296,8 @@ const handleFileChange = (file, fileList) => {
     return
   }
   
-  // 缓存文件到本地，不立即上传
+  // 缓存文件到本地，不立即上传（不显示提示，避免重复）
   uploadedFiles.value.push(file.raw)
-  ElMessage.success('文件已添加到发送队列!')
 }
 
 // 移除文件
@@ -309,12 +309,13 @@ const removeFile = (index) => {
 const sendMessage = () => {
   // 允许只有文件上传而没有文本内容
   if (!inputMessage.value.trim() && uploadedFiles.value.length === 0) return
-  
+
   emit('sendMessage', {
     content: inputMessage.value.trim(),
-    files: uploadedFiles.value
+    files: uploadedFiles.value,
+    onlineSearch: isInternetSearchEnabled.value  // 添加联网搜索参数
   })
-  
+
   // 清空输入
   inputMessage.value = ''
   uploadedFiles.value = []

@@ -495,6 +495,7 @@ watch(
   background-color: var(--background-color);
   color: var(--text-primary);
   transition: var(--transition);
+  overflow: hidden; /* 防止外层滚动 */
 }
 
 .settings-card {
@@ -505,6 +506,17 @@ watch(
   border-color: var(--border-color);
   color: var(--text-primary);
   transition: var(--transition);
+  overflow: hidden; /* 防止卡片本身滚动 */
+}
+
+/* 关键修复：让 el-card 的 body 成为 flex 容器并占满剩余空间 */
+.settings-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* 防止 body 滚动，让内部 content 滚动 */
+  padding: 0; /* 移除默认 padding，由内部元素控制 */
+  min-height: 0; /* 重要：允许 flex 子元素收缩 */
 }
 
 .settings-card :deep(.el-card__header) {
@@ -512,6 +524,7 @@ watch(
   padding: 16px 20px;
   background-color: var(--card-header-background);
   transition: var(--transition);
+  flex-shrink: 0; /* 头部不收缩 */
 }
 
 .settings-card :deep(.el-card__header) h2 {
@@ -526,9 +539,11 @@ watch(
 .settings-content {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   background-color: var(--background-color);
   transition: var(--transition);
+  min-height: 0; /* 重要：允许 flex 子元素收缩并启用滚动 */
 }
 
 /* 设置章节样式 */
@@ -575,6 +590,7 @@ watch(
   justify-content: flex-end;
   background-color: var(--card-background);
   transition: var(--transition);
+  flex-shrink: 0; /* 底部按钮区域不收缩，保持固定 */
 }
 
 /* 头像上传样式 */
