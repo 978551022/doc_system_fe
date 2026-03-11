@@ -16,10 +16,10 @@
               <div class="avatar-uploader-wrapper">
                 <el-upload
                   class="avatar-uploader"
-                  :action="uploadUrl"
+                  :action="''"
                   :show-file-list="false"
-                  :on-success="handleAvatarUploadSuccess"
-                  :before-upload="beforeAvatarUpload"
+                  :on-change="handleAvatarChange"
+                  :auto-upload="false"
                   accept="image/*"
                 >
                   <el-avatar :size="100" :src="userInfo.avatar" class="avatar-preview">
@@ -27,6 +27,11 @@
                   </el-avatar>
                 </el-upload>
                 <div class="avatar-tip">支持 JPG、PNG 格式，大小不超过 2MB</div>
+                <div class="avatar-actions" v-if="userInfo.avatar">
+                  <el-button size="small" type="danger" @click="removeAvatar">
+                    <i class="el-icon-delete"></i> 移除头像
+                  </el-button>
+                </div>
               </div>
             </el-form-item>
             
@@ -278,6 +283,7 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import userState, { updateUserInfo, updateUserAvatar } from '../utils/userStore.js'
 
 
 
@@ -325,45 +331,173 @@ const settings = reactive({
   autoRename: false
 })
 
-// 用户信息
+// 用户信息 - 使用全局状态
 const userInfo = reactive({
-  username: 'user',
-  email: 'user@example.com',
-  phone: '',
-  avatar: '' // 添加头像字段
+  username: userState.username,
+  email: userState.email,
+  phone: userState.phone,
+  avatar: userState.avatar
 })
 
-// 头像上传URL
-const uploadUrl = 'https://localhost:8002/api/v1/user/avatar/upload' // 模拟上传URL
+// 监听全局状态变化，同步更新本地
+watch(
+  () => userState,
+  (newState) => {
+    userInfo.username = newState.username
+    userInfo.email = newState.email
+    userInfo.phone = newState.phone
+    userInfo.avatar = newState.avatar
+  },
+  { deep: true }
+)
 
-// 处理头像上传成功
-const handleAvatarUploadSuccess = (response, file) => {
-  // 模拟上传成功，实际应该使用response中的URL
-  userInfo.avatar = URL.createObjectURL(file.raw)
-  ElMessage.success('头像上传成功!')
+// 存储当前选择的文件（用于保存时上传）
+const selectedAvatarFile = ref(null)
+
+// 头像上传URL（通过Vite代理到后端 /api/v1/docsearch/user/me/avatar）
+// 后端 user_router 前缀为 /user，整体挂载在 /api/v1/docsearch 下
+const uploadUrl = '/api/v1/docsearch/user/me/avatar'
+
+// 处理头像文件选择（本地预览 + 本地持久化，上传成功后再用后端URL覆盖）
+const handleAvatarChange = (uploadFile) => {
+  if (uploadFile && uploadFile.raw) {
+    // 验证文件
+    const isImage = uploadFile.raw.type.startsWith('image/')
+    const isLt2M = uploadFile.raw.size / 1024 / 1024 < 2
+    
+    if (!isImage) {
+      ElMessage.error('只支持图片格式!')
+      return false
+    }
+    if (!isLt2M) {
+      ElMessage.error('头像大小不能超过 2MB!')
+      return false
+    }
+    
+    // 存储文件，等待保存时上传到后端
+    selectedAvatarFile.value = uploadFile.raw
+    
+    // 使用 dataURL 预览，并同步到全局状态和 localStorage（在未登录情况下也能本地显示头像）
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result
+      if (typeof result === 'string') {
+        userInfo.avatar = result
+        updateUserInfo({
+          username: userInfo.username,
+          email: userInfo.email,
+          phone: userInfo.phone,
+          avatar: result
+        })
+        ElMessage.success('头像已选择，本地已生效，保存后将尝试同步到服务器')
+      }
+    }
+    reader.onerror = () => {
+      console.error('读取头像文件失败')
+      ElMessage.error('读取头像文件失败，请重试')
+    }
+    reader.readAsDataURL(uploadFile.raw)
+  }
 }
 
-// 头像上传前验证
-const beforeAvatarUpload = (file) => {
-  const isImage = file.type.startsWith('image/')
-  const isLt2M = file.size / 1024 / 1024 < 2
-  
-  if (!isImage) {
-    ElMessage.error('只支持图片格式!')
-    return false
-  }
-  if (!isLt2M) {
-    ElMessage.error('头像大小不能超过 2MB!')
-    return false
-  }
-  return true
+// 移除头像
+const removeAvatar = () => {
+  userInfo.avatar = ''
+  selectedAvatarFile.value = null
+  ElMessage.info('头像已移除')
 }
 
 // 保存个人资料
-const saveUserInfo = () => {
-  // 模拟保存个人资料
-  console.log('保存个人资料:', userInfo)
-  ElMessage.success('个人资料保存成功!')
+const saveUserInfo = async () => {
+  try {
+    // 如果有选择的头像文件，先上传
+    // 注意：为避免把临时 blob URL 持久化到 localStorage，这里从当前全局状态作为旧值起点
+    let avatarUrl = userState.avatar
+    
+    if (selectedAvatarFile.value) {
+      const formData = new FormData()
+      formData.append('file', selectedAvatarFile.value)
+      
+      try {
+        // 上传头像到后端
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          body: formData,
+          credentials: 'include'
+        })
+        
+        if (response.ok) {
+          const result = await response.json()
+
+          // 尝试从多种常见结构中提取头像 URL，兼容后端不同返回格式
+          let extractedUrl = null
+
+          // 直接在根对象上的字段
+          if (result) {
+            extractedUrl =
+              result.avatar_url ||
+              result.url ||
+              result.avatar ||
+              null
+          }
+
+          // data 包裹一层的情况：{ data: { avatar_url / url / avatar } }
+          if (!extractedUrl && result && result.data) {
+            extractedUrl =
+              result.data.avatar_url ||
+              result.data.url ||
+              result.data.avatar ||
+              null
+          }
+
+          // 用户信息字段下：{ user: { avatar_url / url / avatar } }
+          if (!extractedUrl && result && result.user) {
+            extractedUrl =
+              result.user.avatar_url ||
+              result.user.url ||
+              result.user.avatar ||
+              null
+          }
+
+          // 如果仍然拿不到，就保持原有头像（不覆盖为预览的 blob）
+          if (extractedUrl && typeof extractedUrl === 'string') {
+            avatarUrl = extractedUrl
+          }
+
+          console.log('头像上传成功，最终使用URL:', avatarUrl, '原始响应:', result)
+        } else {
+          console.error('头像上传失败:', response.status, response.statusText)
+          if (response.status === 401) {
+            // 未认证：保留当前本地头像（dataURL），但提示用户未登录
+            ElMessage.error('当前未登录，头像仅保存在本地浏览器，登录后可同步到服务器')
+          } else {
+            ElMessage.error('头像上传失败，请稍后重试')
+          }
+        }
+      } catch (uploadError) {
+        console.error('头像上传异常:', uploadError)
+        ElMessage.error('头像上传异常，请检查网络或后端服务')
+      }
+    }
+    
+    // 更新全局状态（会同步到 Header 和 Sidebar）
+    updateUserInfo({
+      username: userInfo.username,
+      email: userInfo.email,
+      phone: userInfo.phone,
+      avatar: avatarUrl
+    })
+    
+    // 清空待上传文件
+    selectedAvatarFile.value = null
+    
+    ElMessage.success('个人资料保存成功！')
+    
+    console.log('已同步更新全局用户状态:', userState)
+  } catch (error) {
+    console.error('保存个人资料失败:', error)
+    ElMessage.error('保存失败，请重试')
+  }
 }
 
 // 修改密码对话框
@@ -548,8 +682,8 @@ watch(
 
 /* 设置章节样式 */
 .settings-section {
-  margin-bottom: 32px;
-  padding-bottom: 24px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
   border-bottom: 1px solid var(--border-color);
   transition: var(--transition);
 }
@@ -562,10 +696,10 @@ watch(
 
 /* 章节标题样式 */
 .settings-section__title {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: 2px solid var(--primary-color);
   display: inline-block;
@@ -573,24 +707,25 @@ watch(
 }
 
 .settings-form {
-  max-width: 600px;
+  max-width: 500px;
 }
 
 .settings-form__unit {
   margin-left: 8px;
   color: var(--text-muted);
+  font-size: 12px;
   transition: var(--transition);
 }
 
 .settings-actions {
   display: flex;
-  gap: 12px;
-  padding: 20px;
+  gap: 10px;
+  padding: 16px 20px;
   border-top: 1px solid var(--border-color);
   justify-content: flex-end;
   background-color: var(--card-background);
   transition: var(--transition);
-  flex-shrink: 0; /* 底部按钮区域不收缩，保持固定 */
+  flex-shrink: 0;
 }
 
 /* 头像上传样式 */
@@ -627,6 +762,18 @@ watch(
   color: var(--text-muted);
   margin-left: 12px;
   transition: var(--transition);
+}
+
+/* 头像操作按钮 */
+.avatar-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.avatar-actions .el-button {
+  padding: 6px 12px;
+  font-size: 12px;
 }
 
 /* 设置页面输入框样式 - 始终保持浅色主题样式 */

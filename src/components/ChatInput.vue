@@ -43,6 +43,15 @@
           @change="handleInternetSearchChange"
           class="internet-search-switch"
         ></el-switch>
+
+        <!-- 深度推理开关 -->
+        <el-switch
+          v-model="isDeepReasoningEnabled"
+          active-text="深度推理"
+          size="large"
+          @change="handleDeepReasoningChange"
+          class="deep-reasoning-switch"
+        ></el-switch>
         
         <!-- 新建对话按钮 -->
         <el-button 
@@ -83,7 +92,7 @@
           </div>
           <div 
             v-for="(chat, index) in chatHistory" 
-            :key="index"
+            :key="chat.id || index"
             class="history-item"
           >
             <div class="history-item__content">
@@ -94,7 +103,7 @@
               <el-button 
                 type="text" 
                 size="small"
-                @click="loadChatHistory(chat)"
+                @click="handleLoadHistoryItem(chat)"
                 title="加载对话"
               >
                 <i class="el-icon-folder-opened"></i>
@@ -102,7 +111,7 @@
               <el-button 
                 type="text" 
                 size="small"
-                @click="deleteChatHistory(index)"
+                @click="deleteChatHistory(chat)"
                 title="删除对话"
               >
                 <i class="el-icon-delete"></i>
@@ -223,8 +232,35 @@ const models = ref([
 // 当前选中的模型
 const selectedModel = ref('deepseek') // 默认使用DeepSeek模型，不再使用Qwen 2
 
-// 联网搜索开关状态
-const isInternetSearchEnabled = ref(false)
+// 联网搜索开关状态（从本地配置初始化，跨页面保持）
+const loadInternetSearchInitial = () => {
+  try {
+    const raw = localStorage.getItem('chatConfig')
+    if (!raw) return false
+    const parsed = JSON.parse(raw)
+    return !!parsed.isInternetSearchEnabled
+  } catch (error) {
+    console.error('加载联网搜索配置失败:', error)
+    return false
+  }
+}
+
+const isInternetSearchEnabled = ref(loadInternetSearchInitial())
+
+// 深度推理开关状态
+const loadDeepReasoningInitial = () => {
+  try {
+    const raw = localStorage.getItem('chatConfig')
+    if (!raw) return false
+    const parsed = JSON.parse(raw)
+    return !!parsed.isDeepReasoningEnabled
+  } catch (error) {
+    console.error('加载深度推理配置失败:', error)
+    return false
+  }
+}
+
+const isDeepReasoningEnabled = ref(loadDeepReasoningInitial())
 
 // 历史记录弹窗显示状态
 const showHistoryDialog = ref(false)
@@ -241,8 +277,62 @@ const handleModelChange = (modelId) => {
 
 // 处理联网搜索开关变化
 const handleInternetSearchChange = (value) => {
+  // 持久化到本地配置，保证切换功能栏后仍然保持当前状态
+  try {
+    const raw = localStorage.getItem('chatConfig')
+    const parsed = raw ? JSON.parse(raw) : {}
+    parsed.isInternetSearchEnabled = !!value
+    localStorage.setItem('chatConfig', JSON.stringify(parsed))
+  } catch (error) {
+    console.error('保存联网搜索配置失败:', error)
+  }
+
   ElMessage.info(value ? '已开启联网搜索' : '已关闭联网搜索')
 }
+
+// 深度推理开关变化
+const handleDeepReasoningChange = (value) => {
+  try {
+    const raw = localStorage.getItem('chatConfig')
+    const parsed = raw ? JSON.parse(raw) : {}
+    parsed.isDeepReasoningEnabled = !!value
+    localStorage.setItem('chatConfig', JSON.stringify(parsed))
+  } catch (error) {
+    console.error('保存深度推理配置失败:', error)
+  }
+
+  ElMessage.info(value ? '已开启深度推理' : '已关闭深度推理')
+}
+
+// 监听深度推理状态变化，保持与 localStorage 同步
+watch(
+  () => isDeepReasoningEnabled.value,
+  (val) => {
+    try {
+      const raw = localStorage.getItem('chatConfig')
+      const parsed = raw ? JSON.parse(raw) : {}
+      parsed.isDeepReasoningEnabled = !!val
+      localStorage.setItem('chatConfig', JSON.stringify(parsed))
+    } catch (error) {
+      console.error('同步深度推理配置失败:', error)
+    }
+  }
+)
+
+// 当本地状态变化时，同步到 localStorage（防止其他地方修改覆盖）
+watch(
+  () => isInternetSearchEnabled.value,
+  (val) => {
+    try {
+      const raw = localStorage.getItem('chatConfig')
+      const parsed = raw ? JSON.parse(raw) : {}
+      parsed.isInternetSearchEnabled = !!val
+      localStorage.setItem('chatConfig', JSON.stringify(parsed))
+    } catch (error) {
+      console.error('同步联网搜索配置失败:', error)
+    }
+  }
+)
 
 // 处理新建对话
 const handleNewChat = () => {
@@ -253,30 +343,55 @@ const handleNewChat = () => {
 // 处理历史记录按钮点击
 const handleHistoryClick = () => {
   // 加载聊天历史
-  loadChatHistory()
+  loadHistoryList()
   showHistoryDialog.value = true
 }
 
-// 加载聊天历史
-const loadChatHistory = () => {
-  // 从本地存储加载聊天历史
-  const savedHistory = localStorage.getItem('chatHistoryList')
-  if (savedHistory) {
-    try {
-      chatHistory.value = JSON.parse(savedHistory)
-    } catch (error) {
-      console.error('加载聊天历史失败:', error)
-    }
+// 加载聊天历史（统一使用 ChatPage 持久化的 chatHistory）
+const loadHistoryList = () => {
+  const savedHistory = localStorage.getItem('chatHistory')
+  if (!savedHistory) {
+    chatHistory.value = []
+    return
+  }
+
+  try {
+    const { chatSessions = [] } = JSON.parse(savedHistory)
+    chatHistory.value = chatSessions.map((session) => {
+      let timeText = ''
+      if (session.createdAt) {
+        try {
+          timeText = new Date(session.createdAt).toLocaleString()
+        } catch {
+          timeText = session.createdAt
+        }
+      }
+      return {
+        id: session.id,
+        title: session.title || '未命名会话',
+        time: timeText
+      }
+    })
+  } catch (error) {
+    console.error('加载聊天历史失败:', error)
+    chatHistory.value = []
   }
 }
 
-// 删除聊天历史
-const deleteChatHistory = (index) => {
-  chatHistory.value.splice(index, 1)
-  // 保存到本地存储
-  localStorage.setItem('chatHistoryList', JSON.stringify(chatHistory.value))
+// 点击加载某个历史对话
+const handleLoadHistoryItem = (chat) => {
+  if (!chat?.id) return
+  emit('loadHistory', chat.id)
+  showHistoryDialog.value = false
+}
+
+// 删除聊天历史（委托给上层 ChatPage 处理真实会话删除）
+const deleteChatHistory = (chat) => {
+  if (!chat?.id) return
+  emit('deleteHistory', chat.id)
+  // 同步移除当前弹窗列表中的项
+  chatHistory.value = chatHistory.value.filter(item => item.id !== chat.id)
   ElMessage.success('已删除聊天记录')
-  emit('deleteHistory', index)
 }
 
 // 处理文件选择（缓存文件，不立即上传）
@@ -313,7 +428,8 @@ const sendMessage = () => {
   emit('sendMessage', {
     content: inputMessage.value.trim(),
     files: uploadedFiles.value,
-    onlineSearch: isInternetSearchEnabled.value  // 添加联网搜索参数
+    onlineSearch: isInternetSearchEnabled.value,  // 联网搜索参数
+    deepReasoning: isDeepReasoningEnabled.value   // 深度推理参数
   })
 
   // 清空输入
@@ -324,13 +440,13 @@ const sendMessage = () => {
 
 <style scoped>
 .chat-input {
-  padding: 20px 0;
+  padding: 16px 0 20px;
   background-color: var(--background-color);
   border-top: 1px solid var(--border-color);
 }
 
 .chat-input__container {
-  max-width: 1200px;
+  max-width: 900px;
   margin: 0 auto;
   width: 100%;
   padding: 0 20px;
@@ -338,42 +454,37 @@ const sendMessage = () => {
 
 .chat-input__files {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .chat-input__files :deep(.el-tag) {
-  margin-right: 8px;
-  margin-bottom: 8px;
-  border-radius: 16px;
+  margin-right: 6px;
+  margin-bottom: 6px;
+  border-radius: var(--radius-md);
   background-color: var(--surface-color);
-  border: none;
+  border: 1px solid var(--border-color);
   color: var(--text-primary);
-  font-size: 13px;
-  padding: 6px 12px;
-}
-
-.chat-input__files :deep(.el-tag .el-icon-close) {
-  color: var(--text-muted);
   font-size: 12px;
-  margin-left: 6px;
+  padding: 4px 10px;
 }
 
 /* 功能图标栏样式 */
 .chat-input__tools {
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-  padding: 0 4px;
+  margin-bottom: 10px;
+  padding: 0;
 }
 
 .chat-input__tools :deep(.el-button--text) {
   color: var(--text-secondary);
-  font-size: 14px;
-  padding: 8px 12px;
-  border-radius: 16px;
-  transition: all 0.3s ease;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
   background-color: transparent;
 }
 
@@ -382,39 +493,21 @@ const sendMessage = () => {
   background-color: var(--surface-color);
 }
 
-/* 选中按钮样式 */
-.chat-input__tools :deep(.el-button--text.is-selected) {
-  color: #ffffff;
-  background-color: var(--primary-color);
-  box-shadow: var(--shadow-sm);
-}
-
-.chat-input__tools :deep(.el-button--text.is-selected:hover) {
-  color: #ffffff;
-  background-color: var(--primary-hover);
-  box-shadow: var(--shadow-md);
-}
-
-.chat-input__tools :deep(.el-button--text i) {
-  margin-right: 6px;
-  font-size: 16px;
-}
-
 .chat-input__wrapper {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   background-color: var(--card-background);
   border: 1px solid var(--border-color);
-  border-radius: 24px;
-  padding: 12px;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  transition: var(--transition);
 }
 
-.chat-input__wrapper:hover {
+.chat-input__wrapper:hover,
+.chat-input__wrapper:focus-within {
   border-color: var(--primary-color);
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
 }
 
 .chat-input__textarea {
@@ -422,331 +515,192 @@ const sendMessage = () => {
   min-width: 0;
 }
 
-.chat-input__textarea :deep(.el-textarea) {
-  width: 100%;
-}
-
 .chat-input__textarea :deep(.el-textarea__inner) {
   border: none;
   background: transparent;
-  min-height: 60px;
-  padding: 12px 16px;
-  font-size: 15px;
-  line-height: 1.6;
+  min-height: 48px;
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--text-primary);
-  resize: vertical;
-  border-radius: 12px;
+  resize: none;
+  border-radius: var(--radius-md);
   box-shadow: none;
-  transition: all 0.3s ease;
 }
 
 .chat-input__textarea :deep(.el-textarea__inner:focus) {
   box-shadow: none;
-  background-color: transparent;
-  font-size: 16px;
 }
 
 .chat-input__textarea :deep(.el-textarea__inner::placeholder) {
   color: var(--text-muted);
 }
 
-/* 按钮样式 */
-.chat-input :deep(.el-button--text) {
-  color: var(--text-secondary);
-  font-size: 14px;
-  padding: 8px 12px;
-  transition: all 0.3s ease;
-  border-radius: 16px;
-  background-color: transparent;
-}
-
-.chat-input :deep(.el-button--text:hover) {
-  color: var(--primary-color);
-  background-color: var(--surface-color);
-}
-
+/* 发送按钮 */
 .chat-input :deep(.el-button--primary) {
-  background-color: var(--primary-color);
+  background: var(--primary-gradient);
   border: none;
-  border-radius: 16px;
-  padding: 12px 24px;
-  transition: all 0.3s ease;
-  box-shadow: var(--shadow-sm);
-  font-size: 14px;
+  border-radius: var(--radius-md);
+  padding: 10px 20px;
+  transition: var(--transition);
+  font-size: 13px;
   font-weight: 500;
   height: auto;
-  min-width: 80px;
+  min-width: 70px;
 }
 
 .chat-input :deep(.el-button--primary:hover) {
-  background-color: var(--primary-hover);
+  opacity: 0.9;
   transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
 }
 
 .chat-input :deep(.el-button--primary:disabled) {
-  background-color: var(--border-color);
+  background: var(--surface-color);
   color: var(--text-muted);
-  box-shadow: none;
-  transform: none;
 }
 
-/* 统一图标大小 */
-.chat-input :deep(.el-button i) {
-  font-size: 16px;
-  margin-right: 6px;
+/* 上传按钮 */
+.chat-input__upload-btn {
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
+  border-radius: var(--radius-sm) !important;
+  transition: var(--transition) !important;
+  background-color: transparent !important;
 }
 
-/* 上传按钮样式 */
-.chat-input__upload-btn :deep(.el-button--text) {
-  padding: 8px 16px;
-  border-radius: 16px;
-  background-color: var(--surface-color);
-  color: var(--primary-color);
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: auto;
-  height: auto;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.chat-input__upload-btn :deep(.el-button--text:hover) {
-  background-color: var(--primary-color);
-  color: white;
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-md);
-}
-
-.chat-input__upload-btn :deep(.el-button i) {
-  margin-right: 0;
-  font-size: 18px;
-  font-weight: bold;
+.chat-input__upload-btn:hover {
+  color: var(--primary-color) !important;
+  background-color: var(--surface-color) !important;
 }
 
 .chat-input__tip {
   text-align: center;
-  margin-top: 12px;
-  font-size: 12px;
+  margin-top: 8px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-/* 响应式设计 */
-@media (max-width: 768px) {
-  .chat-input__container {
-    padding: 0 16px;
-  }
-  
-  .chat-input__wrapper {
-    padding: 8px;
-  }
-  
-  .chat-input :deep(.el-button--primary) {
-    width: 40px;
-    height: 40px;
-  }
-}
-
-/* 模型选择器样式 */
+/* 模型选择器 */
 .model-selector-wrapper {
-  margin-right: 16px;
+  margin-right: 12px;
 }
 
 .model-selector {
-  width: 200px;
-  font-size: 14px;
+  width: 160px;
+  font-size: 13px;
 }
 
 .model-selector :deep(.el-select__wrapper) {
-  border-radius: 20px;
-  border: 2px solid #e0e0e0;
-  transition: all 0.3s ease;
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  height: 44px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  transition: var(--transition);
+  background: var(--card-background);
+  height: 36px;
 }
 
 .model-selector :deep(.el-select__wrapper:hover) {
-  border-color: #667eea;
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
-  transform: translateY(-2px);
-}
-
-.model-selector :deep(.el-select__wrapper.is-focus) {
-  border-color: #667eea;
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+  border-color: var(--primary-color);
 }
 
 .model-selector :deep(.el-input__inner) {
   border: none;
   background: transparent;
-  font-size: 14px;
-  padding: 0 16px;
+  font-size: 13px;
+  padding: 0 12px;
   font-weight: 500;
-  color: #333;
-}
-
-.model-selector :deep(.el-input__suffix-inner) {
-  padding-right: 12px;
+  color: var(--text-primary);
 }
 
 .model-selector :deep(.el-select-dropdown) {
-  border-radius: 16px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  overflow: hidden;
-  backdrop-filter: blur(10px);
-  margin-top: 8px;
-  padding: 8px 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-lg);
+  background: var(--card-background);
+  padding: 4px 0;
 }
 
 .model-selector :deep(.el-select-dropdown__item) {
-  padding: 14px 20px;
-  transition: all 0.3s ease;
-  border-radius: 12px;
-  margin: 4px 8px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
+  padding: 10px 14px;
+  transition: var(--transition);
+  border-radius: var(--radius-sm);
+  margin: 2px 6px;
+  font-size: 13px;
+  color: var(--text-primary);
 }
 
-.model-selector :deep(.el-select-dropdown__item:hover) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  transform: translateX(4px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
+.model-selector :deep(.el-select-dropdown__item:hover),
 .model-selector :deep(.el-select-dropdown__item.selected) {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}
-
-/* 模型选项样式 */
-.model-option {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-.model-option__icon {
-  font-size: 20px;
-  color: #667eea;
-  transition: all 0.3s ease;
-}
-
-.model-option__name {
-  font-size: 14px;
-  font-weight: 500;
-  flex: 1;
-}
-
-/* 选中模型选项样式 */
-.model-selector :deep(.el-select-dropdown__item.selected) .model-option__icon,
-.model-selector :deep(.el-select-dropdown__item:hover) .model-option__icon {
-  color: white;
-  transform: scale(1.1);
-}
-
-.model-selector :deep(.el-select-dropdown__item.selected) .model-option__name,
-.model-selector :deep(.el-select-dropdown__item:hover) .model-option__name {
-  color: white;
-}
-
-/* 深色主题下的模型选择器样式 */
-.dark-theme .model-selector :deep(.el-select__wrapper) {
-  background: linear-gradient(135deg, var(--card-background) 0%, var(--menu-background) 100%);
-  border-color: var(--border-color);
-  box-shadow: var(--shadow-sm);
-}
-
-.dark-theme .model-selector :deep(.el-input__inner) {
-  color: var(--text-primary);
-}
-
-.dark-theme .model-selector :deep(.el-select-dropdown) {
-  background: linear-gradient(135deg, var(--card-background) 0%, var(--menu-background) 100%);
-  border-color: var(--border-color);
-}
-
-.dark-theme .model-selector :deep(.el-select-dropdown__item) {
-  color: var(--text-primary);
-}
-
-.dark-theme .model-selector :deep(.el-select-dropdown__item:hover),
-.dark-theme .model-selector :deep(.el-select-dropdown__item.selected) {
   background: var(--primary-gradient);
   color: white;
 }
 
-.dark-theme .model-option__icon {
-  color: var(--primary-color);
-}
-
-/* 联网搜索开关样式 */
+/* 联网搜索开关 */
 .internet-search-switch {
-  margin-right: 16px;
-  background-color: var(--card-background);
-  border-radius: 16px;
-  padding: 4px 8px;
+  margin-right: 12px;
+  background-color: var(--surface-color);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  font-size: 12px;
 }
 
-/* 优化开关核心样式，确保与周围div颜色一致 */
 .internet-search-switch :deep(.el-switch__core) {
   background-color: var(--border-color);
   border-color: var(--border-color);
-  transition: all 0.3s ease;
+  transition: var(--transition);
 }
 
 .internet-search-switch :deep(.el-switch.is-checked .el-switch__core) {
   background-color: var(--primary-color);
   border-color: var(--primary-color);
-  transition: all 0.3s ease;
 }
 
 .internet-search-switch :deep(.el-switch__label) {
   color: var(--text-secondary);
-  transition: all 0.3s ease;
+  font-size: 12px;
 }
 
-.internet-search-switch :deep(.el-switch.is-checked .el-switch__label) {
-  color: var(--text-primary);
-  transition: all 0.3s ease;
+/* 深度推理开关，与联网搜索风格保持一致但使用不同间距，便于区分 */
+.deep-reasoning-switch {
+  margin-right: 12px;
+  background-color: var(--surface-color);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
 }
 
-/* 深色主题下的联网搜索开关样式 */
-.dark-theme .internet-search-switch {
-  background-color: var(--card-background);
-  border: 1px solid var(--border-color);
-}
-
-.dark-theme .internet-search-switch :deep(.el-switch__core) {
+.deep-reasoning-switch :deep(.el-switch__core) {
   background-color: var(--border-color);
   border-color: var(--border-color);
+  transition: var(--transition);
 }
 
-.dark-theme .internet-search-switch :deep(.el-switch.is-checked .el-switch__core) {
+.deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core) {
   background-color: var(--primary-color);
   border-color: var(--primary-color);
 }
 
-.dark-theme .internet-search-switch :deep(.el-switch__label) {
+.deep-reasoning-switch :deep(.el-switch__label) {
   color: var(--text-secondary);
+  font-size: 12px;
 }
 
-.dark-theme .internet-search-switch :deep(.el-switch.is-checked .el-switch__label) {
-  color: var(--text-primary);
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .chat-input__container {
+    padding: 0 12px;
+  }
+  
+  .chat-input__wrapper {
+    padding: 8px 10px;
+  }
+  
+  .model-selector {
+    width: 120px;
+  }
 }
 </style>

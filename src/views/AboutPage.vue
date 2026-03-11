@@ -18,6 +18,24 @@
             帮助您更高效地管理文档、获取信息和测试API。
           </p>
         </section>
+
+        <!-- 当前用户信息（头像 + 基本资料） -->
+        <section class="about-section about-user-section">
+          <h4 class="about-section__title">当前登录用户</h4>
+          <div class="about-user">
+            <el-avatar
+              :size="72"
+              :src="userState.avatar"
+              class="about-user__avatar"
+            >
+              <i v-if="!userState.avatar" class="el-icon-user-solid"></i>
+            </el-avatar>
+            <div class="about-user__info">
+              <div class="about-user__name">{{ userState.username }}</div>
+              <div class="about-user__email">{{ userState.email || '未设置邮箱' }}</div>
+            </div>
+          </div>
+        </section>
         
         <!-- 技术栈 -->
         <section class="about-section">
@@ -93,6 +111,8 @@
 </template>
 
 <script setup>
+import userState from '../utils/userStore.js'
+
 // 技术栈
 const techStack = [
   { name: 'Vue 3' },
@@ -110,6 +130,8 @@ const techStack = [
 .about-page {
   width: 100%;
   height: 100%;
+  background-color: var(--background-color);
+  padding: 20px;
 }
 
 .about-card {
@@ -117,23 +139,30 @@ const techStack = [
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background-color: var(--card-background);
+  border-color: var(--border-color);
 }
 
 .about-card :deep(.el-card__header) {
-  border-bottom: 1px solid #ebeef5;
+  border-bottom: 1px solid var(--border-color);
   padding: 16px 20px;
+  background-color: var(--card-header-background);
 }
 
 .about-card :deep(.el-card__header) h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
+}
+
+.about-card :deep(.el-card__body) {
+  flex: 1;
+  overflow-y: auto;
+  background-color: var(--background-color);
 }
 
 .about-content {
-  flex: 1;
-  overflow-y: auto;
   padding: 32px;
   display: flex;
   flex-direction: column;
@@ -142,115 +171,121 @@ const techStack = [
 }
 
 .about-section {
-  margin-bottom: 32px;
+  margin-bottom: 28px;
   width: 100%;
-  max-width: 600px;
+  max-width: 500px;
 }
 
 .about-logo {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-xl);
+  background: var(--primary-gradient);
   color: white;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 64px;
-  margin: 0 auto 24px;
-  box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+  font-size: 40px;
+  margin: 0 auto 20px;
+  box-shadow: var(--shadow-lg);
 }
 
 .about-title {
-  font-size: 28px;
-  font-weight: 600;
-  color: #303133;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
   margin-bottom: 8px;
 }
 
 .about-version {
-  font-size: 16px;
-  color: #667eea;
-  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--primary-color);
+  margin-bottom: 12px;
   font-weight: 500;
 }
 
 .about-description {
-  font-size: 16px;
-  color: #606266;
+  font-size: 14px;
+  color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .about-section__title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
-  color: #303133;
-  margin-bottom: 16px;
+  color: var(--text-primary);
+  margin-bottom: 14px;
   text-align: center;
 }
 
 .about-tech-stack {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   justify-content: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .about-tech-stack :deep(.el-tag) {
-  font-size: 14px;
-  padding: 6px 12px;
-  border-radius: 20px;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--radius-xl);
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
 .about-features {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .about-feature {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 16px;
-  background-color: #f8f9fa;
-  border-radius: 12px;
-  transition: all 0.3s ease;
+  gap: 6px;
+  padding: 14px 10px;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: var(--transition);
 }
 
 .about-feature:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-color);
 }
 
 .about-feature i {
-  font-size: 24px;
-  color: #667eea;
+  font-size: 20px;
+  color: var(--primary-color);
 }
 
 .about-feature span {
-  font-size: 14px;
-  color: #606266;
+  font-size: 12px;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .about-copyright {
-  color: #909399;
+  color: var(--text-muted);
   line-height: 1.6;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+  font-size: 12px;
 }
 
 .about-copyright p {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .about-contact {
   display: flex;
-  gap: 24px;
+  gap: 20px;
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -258,18 +293,21 @@ const techStack = [
 .about-contact__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #606266;
-  font-size: 14px;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition);
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
 }
 
 .about-contact__item:hover {
-  color: #667eea;
+  color: var(--primary-color);
+  background-color: var(--surface-color);
 }
 
 .about-contact__item i {
-  font-size: 18px;
+  font-size: 16px;
 }
 </style>

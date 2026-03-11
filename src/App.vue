@@ -171,61 +171,80 @@ onUnmounted(() => {
 </script>
 
 <style>
-/* 全局变量定义 */
+/* 全局变量定义 - IT行业高级简约风格 */
 :root {
-  /* 浅色主题变量 */
-  --primary-color: #667eea;
-  --primary-hover: #5568d3;
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --background-color: #ffffff;
-  --surface-color: #f8f9fa;
+  /* 浅色主题变量 - 专业简约风格 */
+  --primary-color: #4f46e5;
+  --primary-hover: #4338ca;
+  --primary-light: #818cf8;
+  --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  --accent-color: #06b6d4;
+  --accent-gradient: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --error-color: #ef4444;
+  --background-color: #f8fafc;
+  --surface-color: #f1f5f9;
   --card-background: #ffffff;
   --card-header-background: #ffffff;
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --text-muted: #999999;
-  --border-color: #e0e0e0;
-  --border-hover: #d0d0d0;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --border-color: #e2e8f0;
+  --border-hover: #cbd5e1;
   --menu-background: #ffffff;
-  --menu-item-color: #495057;
-  --menu-item-hover: #f8f9fa;
+  --menu-item-color: #475569;
+  --menu-item-hover: #f1f5f9;
   --menu-item-active: var(--primary-gradient);
   --input-background: #ffffff;
-  --input-border: #e0e0e0;
-  --input-placeholder: #999999;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
-  --transition: all 0.3s ease;
+  --input-border: #e2e8f0;
+  --input-placeholder: #94a3b8;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16);
+  --transition-fast: all 0.15s ease;
+  --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
 }
 
-/* 深色主题变量 - 参考DeepSeek界面 */
+/* 深色主题变量 - 现代暗黑风格 */
 .dark-theme {
   --primary-color: #818cf8;
   --primary-hover: #6366f1;
+  --primary-light: #a5b4fc;
   --primary-gradient: linear-gradient(135deg, #818cf8 0%, #a78bfa 100%);
-  /* 调整深色背景，不要太黑，参考DeepSeek界面 */
-  --background-color: #1a1a1a;
-  --surface-color: #1a1a1a;
-  --card-background: #242424;
-  --card-header-background: #242424;
-  /* 更亮的字体颜色，提高可读性 */
-  --text-primary: #ffffff;
-  --text-secondary: #e0e0e0;
-  --text-muted: #b0b0b0;
-  --border-color: #3a3a3a;
-  --border-hover: #4a4a4a;
-  /* 统一菜单背景色，与主背景一致 */
-  --menu-background: #1a1a1a;
-  --menu-item-color: #e0e0e0;
-  --menu-item-hover: #242424;
+  --accent-color: #22d3ee;
+  --accent-gradient: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+  --success-color: #34d399;
+  --warning-color: #fbbf24;
+  --error-color: #f87171;
+  --background-color: #0f172a;
+  --surface-color: #1e293b;
+  --card-background: #1e293b;
+  --card-header-background: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --border-color: #334155;
+  --border-hover: #475569;
+  --menu-background: #0f172a;
+  --menu-item-color: #cbd5e1;
+  --menu-item-hover: #1e293b;
   --menu-item-active: var(--primary-gradient);
-  --input-background: #242424;
-  --input-border: #3a3a3a;
-  --input-placeholder: #808080;
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --input-background: #1e293b;
+  --input-border: #334155;
+  --input-placeholder: #64748b;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
 /* 全局样式重置 */

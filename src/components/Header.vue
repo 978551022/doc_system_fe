@@ -3,15 +3,49 @@
     <div class="app-header__left">
       <!-- 系统标题 -->
       <div class="app-header__title" @click="goToChat">
-        <!-- 时尚logo -->
+        <!-- 简约Logo -->
         <div class="app-header__logo">
           <div class="logo-icon">
-            <div class="logo-circle"></div>
-            <div class="logo-document"></div>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="6" width="24" height="20" rx="3" fill="currentColor" opacity="0.2"/>
+              <rect x="7" y="9" width="18" height="14" rx="2" fill="currentColor"/>
+              <path d="M10 14h12M10 18h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
           </div>
         </div>
-        <h1>个人文档系统</h1>
+        <div class="app-header__brand">
+          <h1>DocHub</h1>
+          <span class="app-header__subtitle">智能文档系统</span>
+        </div>
       </div>
+    </div>
+    
+    <!-- 右侧用户区域 -->
+    <div class="app-header__right">
+      <el-dropdown @command="handleUserCommand" trigger="click">
+        <div class="user-avatar-wrapper">
+          <el-avatar :size="36" :src="userState.avatar" class="user-avatar">
+            <i v-if="!userState.avatar" class="el-icon-user-solid"></i>
+          </el-avatar>
+          <div class="user-info">
+            <span class="user-name">{{ userState.username }}</span>
+            <i class="el-icon-arrow-down"></i>
+          </div>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="profile">
+              <i class="el-icon-user"></i> 个人中心
+            </el-dropdown-item>
+            <el-dropdown-item command="settings">
+              <i class="el-icon-setting"></i> 系统设置
+            </el-dropdown-item>
+            <el-dropdown-item divided command="logout">
+              <i class="el-icon-switch-button"></i> 退出登录
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
   </header>
 </template>
@@ -19,6 +53,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import userState from '../utils/userStore.js'
 
 const router = useRouter()
 
@@ -26,58 +61,43 @@ const router = useRouter()
 const goToChat = () => {
   router.push('/chat')
 }
+
+// 处理用户下拉菜单命令
+const handleUserCommand = (command) => {
+  switch (command) {
+    case 'profile':
+    case 'settings':
+      router.push('/settings')
+      break
+    case 'logout':
+      // TODO: 实现退出登录功能
+      console.log('退出登录')
+      break
+  }
+}
 </script>
 
 <style scoped>
 .app-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 0 24px;
-  height: 60px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
+  height: 56px;
+  background: var(--card-background);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  transition: var(--transition);
   position: relative;
   z-index: 100;
-  border-radius: 0;
-  margin: 0;
   width: 100%;
   flex-shrink: 0;
 }
 
 /* 深色主题下的顶部导航栏样式 */
 .dark-theme .app-header {
-  background: var(--background-color);
-  border-bottom: 1px solid var(--border-color);
-  color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
-}
-
-/* 深色主题下的标题样式 */
-.dark-theme .app-header__title h1 {
-  color: var(--text-primary);
-}
-
-/* 深色主题下的logo样式 */
-.dark-theme .logo-circle {
-  background: var(--primary-gradient);
-  border-color: var(--border-color);
-  box-shadow: var(--shadow-sm);
-}
-
-.dark-theme .logo-document {
   background: var(--card-background);
-  box-shadow: var(--shadow-sm);
-}
-
-.dark-theme .logo-document::before,
-.dark-theme .logo-document::after {
-  background: var(--primary-color);
-}
-
-.app-header:hover {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+  border-bottom-color: var(--border-color);
 }
 
 .app-header__left {
@@ -90,92 +110,104 @@ const goToChat = () => {
   align-items: center;
   gap: 12px;
   cursor: pointer;
-  transition: transform 0.3s ease;
+  transition: var(--transition);
 }
 
 .app-header__title:hover {
-  transform: scale(1.02);
+  opacity: 0.85;
 }
 
-.app-header__title h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-}
-
-/* Logo 样式 */
 .app-header__logo {
   display: flex;
   align-items: center;
 }
 
 .logo-icon {
-  position: relative;
   width: 36px;
   height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: logoPulse 2s ease-in-out infinite;
+  color: var(--primary-color);
+  transition: var(--transition);
 }
 
-@keyframes logoPulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
+.logo-icon svg {
+  width: 32px;
+  height: 32px;
 }
 
-.logo-circle {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border: 2px solid rgba(255, 255, 255, 0.9);
-  position: absolute;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.logo-document {
-  position: absolute;
-  width: 18px;
-  height: 22px;
-  background: white;
-  border-radius: 3px;
+.app-header__brand {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  transform: rotate(-5deg);
-  transition: transform 0.3s ease;
+  flex-direction: column;
+  gap: 0;
 }
 
-.logo-document::before {
-  content: '';
-  width: 10px;
-  height: 3px;
-  background: #667eea;
-  border-radius: 1.5px;
-  margin-bottom: 2px;
-  display: block;
+.app-header__title h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text-primary);
 }
 
-.logo-document::after {
-  content: '';
-  width: 10px;
-  height: 3px;
-  background: #667eea;
-  border-radius: 1.5px;
-  margin-top: 5px;
-  position: absolute;
-  display: block;
+.app-header__subtitle {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
-.logo-icon:hover .logo-document {
-  transform: rotate(0deg) scale(1.1);
+/* 右侧用户区域 */
+.app-header__right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-avatar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  transition: var(--transition-fast);
+}
+
+.user-avatar-wrapper:hover {
+  background-color: var(--surface-color);
+}
+
+.user-avatar {
+  background: var(--primary-gradient);
+  color: white;
+  border: 2px solid var(--border-color);
+  transition: var(--transition);
+}
+
+.user-avatar:hover {
+  transform: scale(1.05);
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: var(--transition);
+}
+
+.user-info i {
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: var(--transition);
 }
 </style>

@@ -196,34 +196,43 @@ const handleCurrentChange = (page) => {
 }
 
 .page-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   color: var(--text-primary);
   transition: var(--transition);
 }
 
 .upload-card {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   background-color: var(--card-background);
   border-color: var(--border-color);
   transition: var(--transition);
 }
 
+.upload-card :deep(.el-card__body) {
+  padding: 20px;
+}
+
 .upload-dragger {
   width: 100%;
-  height: 200px;
   border: 2px dashed var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background-color: var(--surface-color);
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: var(--transition);
+  padding: 40px 20px;
 }
 
 .upload-dragger:hover {
   border-color: var(--primary-color);
   background-color: var(--card-background);
+}
+
+.documents-card {
+  background-color: var(--card-background);
+  border-color: var(--border-color);
 }
 
 .card-header {
@@ -235,7 +244,7 @@ const handleCurrentChange = (page) => {
 }
 
 .pagination {
-  margin-top: 20px;
+  margin-top: 16px;
   text-align: right;
 }
 
@@ -244,6 +253,7 @@ const handleCurrentChange = (page) => {
   background-color: var(--card-background);
   color: var(--text-primary);
   transition: var(--transition);
+  font-size: 13px;
 }
 
 .documents-card :deep(.el-table__header-wrapper) {
@@ -256,6 +266,8 @@ const handleCurrentChange = (page) => {
   color: var(--text-primary);
   border-bottom-color: var(--border-color);
   transition: var(--transition);
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .documents-card :deep(.el-table__body-wrapper tr) {
@@ -276,6 +288,7 @@ const handleCurrentChange = (page) => {
 .documents-card :deep(.el-link) {
   color: var(--primary-color);
   transition: var(--transition);
+  font-size: 13px;
 }
 
 .documents-card :deep(.el-link:hover) {
@@ -293,28 +306,21 @@ const handleCurrentChange = (page) => {
   transition: var(--transition);
 }
 
-/* 深色主题下的上传区域样式 */
-.dark-theme .upload-dragger {
+/* 上传图标样式 */
+.upload-card :deep(.el-upload-dragger) {
   background-color: var(--surface-color);
   border-color: var(--border-color);
+  border-radius: var(--radius-md);
 }
 
-.dark-theme .upload-dragger:hover {
+.upload-card :deep(.el-upload-dragger:hover) {
   border-color: var(--primary-color);
   background-color: var(--card-background);
 }
 
-.dark-theme .el-upload-dragger {
-  background-color: var(--surface-color);
-  border-color: var(--border-color);
-}
-
-.dark-theme .el-upload-dragger:hover {
-  border-color: var(--primary-color);
-  background-color: var(--card-background);
-}
-
-.dark-theme .el-tree__empty-text {
-  color: var(--text-muted);
+.upload-card :deep(.el-icon-upload) {
+  color: var(--primary-color);
+  font-size: 48px;
+  margin-bottom: 12px;
 }
 </style>

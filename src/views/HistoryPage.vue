@@ -60,64 +60,105 @@ import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-// 历史对话列表
+// 历史对话列表（来源于 ChatPage 持久化的 chatHistory）
 const historyList = ref([])
-
-// 模拟数据
-const mockHistory = [
-  {
-    id: 1,
-    title: '关于文档管理系统的咨询',
-    preview: '我想了解一下这个文档管理系统的主要功能...',
-    time: '2024-01-15 14:30',
-    messageCount: 8,
-    status: 'active'
-  },
-  {
-    id: 2,
-    title: 'API测试问题',
-    preview: '为什么我的API请求总是返回404错误...',
-    time: '2024-01-14 10:15',
-    messageCount: 5,
-    status: 'ended'
-  },
-  {
-    id: 3,
-    title: '智能助手功能介绍',
-    preview: '能给我介绍一下智能助手的主要功能吗...',
-    time: '2024-01-13 16:45',
-    messageCount: 12,
-    status: 'ended'
-  }
-]
 
 // 生命周期钩子
 onMounted(() => {
   loadHistoryList()
 })
 
-// 加载历史对话列表
+// 从本地存储加载真实的历史对话列表
 const loadHistoryList = () => {
-  // 模拟从后端获取数据
-  historyList.value = mockHistory
+  const savedHistory = localStorage.getItem('chatHistory')
+  if (!savedHistory) {
+    historyList.value = []
+    return
+  }
+
+  try {
+    const { chatSessions = [], currentSessionId } = JSON.parse(savedHistory)
+
+    historyList.value = chatSessions.map((session) => {
+      const messages = session.messages || []
+      const firstUserMsg = messages.find(m => m.role === 'user') || messages[0] || null
+      const previewContent = firstUserMsg?.content || '暂无消息内容'
+
+      let timeText = ''
+      if (session.createdAt) {
+        try {
+          timeText = new Date(session.createdAt).toLocaleString()
+        } catch {
+          timeText = session.createdAt
+        }
+      }
+
+      return {
+        id: session.id,
+        title: session.title || (previewContent ? previewContent.slice(0, 20) : '未命名会话'),
+        preview: previewContent,
+        time: timeText,
+        messageCount: messages.length,
+        status: session.id === currentSessionId ? 'active' : 'ended'
+      }
+    })
+  } catch (error) {
+    console.error('加载历史对话失败:', error)
+    historyList.value = []
+  }
 }
 
-// 加载历史对话
+// 加载某个历史对话：通过路由参数把会话 ID 传给 ChatPage
 const loadHistory = (item) => {
-  // 跳转到聊天页面并加载历史对话
-  router.push('/chat')
-  // 这里可以添加加载历史对话的逻辑
-  console.log('加载历史对话:', item)
+  if (!item?.id) return
+  router.push({
+    path: '/chat',
+    query: { sessionId: item.id }
+  })
 }
 
-// 删除历史对话
+// 删除历史对话（同步更新本地存储的 chatHistory）
 const deleteHistory = (id) => {
   historyList.value = historyList.value.filter(item => item.id !== id)
+
+  const savedHistory = localStorage.getItem('chatHistory')
+  if (!savedHistory) return
+
+  try {
+    const parsed = JSON.parse(savedHistory)
+    const chatSessions = (parsed.chatSessions || []).filter(session => session.id !== id)
+    let currentSessionId = parsed.currentSessionId
+
+    if (currentSessionId === id) {
+      currentSessionId = chatSessions[0]?.id || ''
+    }
+
+    localStorage.setItem('chatHistory', JSON.stringify({
+      ...parsed,
+      chatSessions,
+      currentSessionId
+    }))
+  } catch (error) {
+    console.error('删除历史对话时更新本地存储失败:', error)
+  }
 }
 
-// 清空历史
+// 清空历史（同步清理本地存储）
 const clearHistory = () => {
   historyList.value = []
+  const savedHistory = localStorage.getItem('chatHistory')
+  if (!savedHistory) return
+
+  try {
+    const parsed = JSON.parse(savedHistory)
+    localStorage.setItem('chatHistory', JSON.stringify({
+      ...parsed,
+      chatSessions: [],
+      currentSessionId: ''
+    }))
+  } catch (error) {
+    console.error('清空历史对话失败:', error)
+  }
 }
 
 // 跳转到聊天页面
@@ -132,6 +173,8 @@ const goToChat = () => {
   height: 100%;
   display: flex;
   flex-direction: column;
+  background-color: var(--background-color);
+  padding: 20px;
 }
 
 .history-card {
@@ -139,6 +182,14 @@ const goToChat = () => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background-color: var(--card-background);
+  border-color: var(--border-color);
+}
+
+.history-card :deep(.el-card__header) {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--card-header-background);
 }
 
 .card-header {
@@ -149,26 +200,41 @@ const goToChat = () => {
 
 .card-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
+}
+
+.history-card :deep(.el-card__body) {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background-color: var(--background-color);
 }
 
 .history-list {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 0;
+  padding: 0;
 }
 
 .history-item {
   cursor: pointer;
-  transition: all 0.3s ease;
-  margin-bottom: 16px;
+  transition: var(--transition);
+  margin-bottom: 12px;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
 }
 
 .history-item:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary-color);
+}
+
+.history-item :deep(.el-card__body) {
+  padding: 16px;
 }
 
 .history-item__header {
@@ -180,23 +246,23 @@ const goToChat = () => {
 
 .history-item__title {
   margin: 0;
-  font-size: 18px;
-  font-weight: 500;
-  color: #303133;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .history-item__delete-btn {
-  color: #909399;
+  color: var(--text-muted);
 }
 
 .history-item__delete-btn:hover {
-  color: #f56c6c;
+  color: var(--error-color);
 }
 
 .history-item__preview {
   margin: 8px 0;
-  font-size: 14px;
-  color: #606266;
+  font-size: 13px;
+  color: var(--text-secondary);
   line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -210,12 +276,12 @@ const goToChat = () => {
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #909399;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 
 .history-item__status.active {
-  color: #67c23a;
+  color: var(--success-color);
 }
 
 .history-empty {
@@ -224,17 +290,31 @@ const goToChat = () => {
   align-items: center;
   justify-content: center;
   height: 300px;
-  color: #909399;
+  color: var(--text-muted);
 }
 
 .history-empty i {
-  font-size: 64px;
+  font-size: 56px;
   margin-bottom: 16px;
-  color: #c0c4cc;
+  color: var(--border-color);
 }
 
 .history-empty p {
-  margin-bottom: 24px;
-  font-size: 16px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* 时间线样式 */
+.history-list :deep(.el-timeline-item__timestamp) {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.history-list :deep(.el-timeline-item__node) {
+  background-color: var(--primary-color);
+}
+
+.history-list :deep(.el-timeline-item__tail) {
+  border-left-color: var(--border-color);
 }
 </style>

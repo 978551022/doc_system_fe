@@ -10,8 +10,30 @@
         v-show="message.content || message.role === 'user'"
       >
         <div class="chat-message__avatar">
-          <i :class="message.role === 'user' ? 'el-icon-user' : 'el-icon-chat-dot-round'">
-          </i>
+          <!-- 用户头像：使用用户最新上传的头像 -->
+          <template v-if="message.role === 'user'">
+            <el-avatar
+              :size="32"
+              :src="userState.avatar"
+              class="chat-avatar chat-avatar--user"
+            >
+              <i v-if="!userState.avatar" class="el-icon-user"></i>
+            </el-avatar>
+          </template>
+          <!-- 助手头像：类 chatbox 机器人形象 -->
+          <template v-else>
+            <div class="chat-avatar chat-avatar--assistant">
+              <div class="chat-avatar__inner">
+                <div class="chat-avatar__robot-face">
+                  <div class="chat-avatar__eyes">
+                    <span class="chat-avatar__eye"></span>
+                    <span class="chat-avatar__eye"></span>
+                  </div>
+                  <div class="chat-avatar__mouth"></div>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
         <div class="chat-message__content">
           <div class="chat-message__text">{{ message.content }}</div>
@@ -33,7 +55,17 @@
       <!-- 加载状态 -->
       <div v-if="isTyping" class="chat-message chat-message--assistant">
         <div class="chat-message__avatar">
-          <i class="el-icon-chat-dot-round"></i>
+          <div class="chat-avatar chat-avatar--assistant">
+            <div class="chat-avatar__inner">
+              <div class="chat-avatar__robot-face">
+                <div class="chat-avatar__eyes">
+                  <span class="chat-avatar__eye"></span>
+                  <span class="chat-avatar__eye"></span>
+                </div>
+                <div class="chat-avatar__mouth"></div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="chat-message__content">
           <div class="chat-message__typing">
@@ -48,9 +80,14 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch, reactive } from 'vue'
+import { useRoute } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { uploadDocument, queryDocumentStream, waitForDocumentProcessing } from '../api/document.js'
+import userState from '../utils/userStore.js'
+
+// 路由对象，用于接收 HistoryPage 传入的会话 ID
+const route = useRoute()
 
 // 聊天会话列表
 const chatSessions = ref([
@@ -140,7 +177,7 @@ const isSending = ref(false)
 // 发送消息方法（用于接收来自ChatInput的消息）
 const sendMessage = async (data) => {
   console.log('ChatPage收到消息:', data)
-  const { content, files, onlineSearch } = data
+  const { content, files, onlineSearch, deepReasoning } = data
 
   // 允许只有文件上传而没有文本内容
   if (!content.trim() && (!files || files.length === 0)) return
@@ -275,6 +312,12 @@ const sendMessage = async (data) => {
     console.log('联网搜索已开启')
   }
 
+  // 如果开启了深度推理，也在消息中打标
+  if (deepReasoning) {
+    messageContent += ' [深度推理]'
+    console.log('深度推理已开启')
+  }
+
   // 创建用户消息
   const userMessage = {
     id: Date.now(),
@@ -373,7 +416,9 @@ const sendMessage = async (data) => {
             messages: sessionRef.conversationHistory,
             temperature: 0.7,
             max_tokens: 2000,
-            stream: true
+            stream: true,
+            online_search: !!onlineSearch,
+            deep_thinking: !!deepReasoning
           }
           headers = {
             'Authorization': `Bearer ${config.api_key}`,
@@ -387,7 +432,9 @@ const sendMessage = async (data) => {
             messages: sessionRef.conversationHistory,
             temperature: 0.7,
             max_tokens: 2000,
-            stream: true
+            stream: true,
+            online_search: !!onlineSearch,
+            deep_thinking: !!deepReasoning
           }
           headers = {
             'Authorization': `Bearer ${config.api_key}`,
@@ -401,7 +448,9 @@ const sendMessage = async (data) => {
             messages: sessionRef.conversationHistory,
             temperature: 0.7,
             max_tokens: 2000,
-            stream: true
+            stream: true,
+            online_search: !!onlineSearch,
+            deep_thinking: !!deepReasoning
           }
           headers = {
             'Authorization': `Bearer ${config.api_key}`,
@@ -415,7 +464,9 @@ const sendMessage = async (data) => {
             messages: sessionRef.conversationHistory,
             temperature: 0.7,
             max_tokens: 2000,
-            stream: true
+            stream: true,
+            online_search: !!onlineSearch,
+            deep_thinking: !!deepReasoning
           }
           headers = {
             'Authorization': `Bearer ${config.api_key}`,
@@ -826,6 +877,31 @@ watch(
 // 生命周期钩子
 onMounted(() => {
   loadChatHistory()
+
+  // 如果从 HistoryPage 带有 sessionId 查询参数，则切换到对应会话
+  const initialSessionId = Array.isArray(route.query.sessionId)
+    ? route.query.sessionId[0]
+    : route.query.sessionId
+  if (initialSessionId) {
+    const target = chatSessions.value.find(session => session.id === initialSessionId)
+    if (target) {
+      currentSessionId.value = initialSessionId
+    }
+  }
+  
+  // 监听路由参数变化，支持在聊天页内通过修改 query 切换会话
+  watch(
+    () => route.query.sessionId,
+    (newVal) => {
+      const sessionId = Array.isArray(newVal) ? newVal?.[0] : newVal
+      if (!sessionId) return
+      const target = chatSessions.value.find(session => session.id === sessionId)
+      if (target && target.id !== currentSessionId.value) {
+        currentSessionId.value = target.id
+        scrollToBottom()
+      }
+    }
+  )
   
   window.addEventListener('resize', () => {
     scrollToBottom(false)
@@ -859,13 +935,10 @@ defineExpose({
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 24px 20px;
   padding-bottom: 40px;
   background: transparent;
-  border-radius: 0;
-  border: none;
-  box-shadow: none;
-  max-width: 1200px;
+  max-width: 900px;
   margin: 0 auto;
   width: 100%;
   scroll-behavior: smooth;
@@ -875,16 +948,16 @@ defineExpose({
 
 .chat-message {
   display: flex;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   animation: fadeIn 0.3s ease;
-  padding: 0 10px;
-  transition: all 0.3s ease;
+  padding: 0;
+  transition: var(--transition);
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -903,39 +976,108 @@ defineExpose({
 .chat-message__avatar {
   width: 40px;
   height: 40px;
-  border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 20px;
-  margin: 0 10px;
+  margin: 0 12px;
   flex-shrink: 0;
-  box-shadow: var(--shadow-sm);
-  background-color: var(--surface-color);
-  color: var(--text-secondary);
-  transition: var(--transition);
-}
-
-.chat-message__avatar:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .chat-message--user .chat-message__avatar {
-  background-color: #667eea;
-  color: white;
   order: 2;
 }
 
 .chat-message--assistant .chat-message__avatar {
-  background-color: #4ecdc4;
-  color: white;
   order: 1;
 }
 
+.chat-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-avatar--user {
+  background: var(--primary-gradient);
+  border: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.chat-avatar--assistant {
+  background: var(--accent-gradient);
+  padding: 2px;
+  position: relative;
+}
+
+.chat-avatar__inner {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.35), transparent 60%);
+  color: #ffffff;
+  font-size: 20px;
+}
+
+.chat-avatar--assistant::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+
+.chat-message:hover .chat-avatar {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
+}
+
+/* 机器人面部细节，让头像看起来更像聊天机器人 */
+.chat-avatar__robot-face {
+  width: 70%;
+  height: 70%;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.75);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.4);
+}
+
+.chat-avatar__eyes {
+  display: flex;
+  justify-content: space-between;
+  width: 65%;
+  margin-bottom: 3px;
+}
+
+.chat-avatar__eye {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.9);
+}
+
+.chat-avatar__mouth {
+  width: 50%;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #22c55e, #a855f7);
+  opacity: 0.85;
+}
+
 .chat-message__content {
-  max-width: 75%;
-  min-width: 120px;
+  max-width: 70%;
+  min-width: 100px;
 }
 
 .chat-message--user .chat-message__content {
@@ -947,43 +1089,37 @@ defineExpose({
 }
 
 .chat-message__text {
-  padding: 14px 20px;
-  border-radius: 18px;
+  padding: 12px 16px;
+  border-radius: var(--radius-lg);
   line-height: 1.6;
   word-break: break-word;
-  font-size: 15px;
-  box-shadow: var(--shadow-sm);
+  font-size: 14px;
   background-color: var(--card-background);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   transition: var(--transition);
 }
 
-.chat-message__text:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
 .chat-message--user .chat-message__text {
-  background-color: var(--primary-color);
+  background: var(--primary-gradient);
   color: white;
-  border-bottom-right-radius: 4px;
-  border-color: var(--primary-color);
+  border: none;
+  border-bottom-right-radius: var(--radius-sm);
 }
 
 .chat-message--assistant .chat-message__text {
   background-color: var(--card-background);
   color: var(--text-primary);
-  border-bottom-left-radius: 4px;
-  border-color: var(--border-color);
+  border-bottom-left-radius: var(--radius-sm);
 }
 
 .chat-message__meta {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 8px;
-  font-size: 12px;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
@@ -997,7 +1133,7 @@ defineExpose({
 
 .chat-message__copy-btn {
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: var(--transition-fast);
 }
 
 .chat-message:hover .chat-message__copy-btn {
@@ -1007,13 +1143,14 @@ defineExpose({
 .chat-message__typing {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 20px;
-  background-color: #ffffff;
-  border-radius: 18px;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e0e0e0;
+  gap: 8px;
+  padding: 12px 16px;
+  background-color: var(--card-background);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -1021,8 +1158,7 @@ defineExpose({
 }
 
 .chat-messages::-webkit-scrollbar-track {
-  background: var(--surface-color);
-  border-radius: 3px;
+  background: transparent;
 }
 
 .chat-messages::-webkit-scrollbar-thumb {

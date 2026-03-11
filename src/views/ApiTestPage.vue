@@ -81,17 +81,47 @@
           <div class="api-detail__form">
             <h4>请求参数表单</h4>
             <el-form :model="requestParams" label-width="120px">
-              <el-form-item 
-                v-for="param in selectedApi.parameters" 
-                :key="param.name"
-                :label="param.name"
-                :required="param.required"
-              >
-                <el-input 
-                  v-model="requestParams[param.name]" 
-                  placeholder="请输入{{ param.name }}"
-                ></el-input>
-              </el-form-item>
+              <template v-if="selectedApi.parameters && selectedApi.parameters.length > 0">
+                <el-form-item 
+                  v-for="param in selectedApi.parameters" 
+                  :key="param.name"
+                  :label="param.name"
+                  :required="param.required"
+                >
+                  <!-- 文件上传类型 -->
+                  <template v-if="param.type === 'file' || param.name === 'file'">
+                    <el-upload
+                      class="file-uploader"
+                      :auto-upload="false"
+                      :show-file-list="true"
+                      :limit="1"
+                      :on-change="(file) => handleFileChange(param.name, file)"
+                      :on-remove="() => handleFileRemove(param.name)"
+                    >
+                      <el-button type="primary">
+                        <i class="el-icon-upload"></i> 选择文件
+                      </el-button>
+                      <template #tip>
+                        <div class="el-upload__tip">{{ param.description || '请选择要上传的文件' }}</div>
+                      </template>
+                    </el-upload>
+                  </template>
+                  <!-- 普通输入类型 -->
+                  <template v-else>
+                    <el-input 
+                      v-model="requestParams[param.name]" 
+                      :placeholder="`请输入${param.name}`"
+                    ></el-input>
+                  </template>
+                </el-form-item>
+              </template>
+              <!-- 如果没有参数定义，显示提示信息 -->
+              <template v-else>
+                <div class="no-params-tip">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>该接口无需参数，可直接发送请求</span>
+                </div>
+              </template>
             </el-form>
           </div>
           
@@ -145,7 +175,7 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
 import axios from 'axios'
-import { Loading, CircleClose } from '@element-plus/icons-vue'
+import { Loading, CircleClose, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 // API列表数据
@@ -159,6 +189,9 @@ const loadError = ref(null)
 
 // 请求参数
 const requestParams = reactive({})
+
+// 文件参数存储
+const fileParams = reactive({})
 
 // 响应结果格式
 const responseFormat = ref('json')
@@ -209,18 +242,37 @@ const extractApisFromOpenAPI = (openapiData, baseUrl) => {
         if (operation.requestBody) {
           const requestBody = operation.requestBody
           const content = requestBody.content || {}
-          const jsonContent = content['application/json'] || {}
-          const schema = jsonContent.schema || {}
           
-          // 解析schema，提取请求体参数
-          if (schema.properties) {
-            for (const [propName, propSchema] of Object.entries(schema.properties)) {
+          // 处理JSON类型
+          const jsonContent = content['application/json'] || {}
+          const jsonSchema = jsonContent.schema || {}
+          
+          if (jsonSchema.properties) {
+            for (const [propName, propSchema] of Object.entries(jsonSchema.properties)) {
               parameters.push({
                 name: propName,
                 type: propSchema.type || 'string',
-                required: schema.required?.includes(propName) || false,
+                required: jsonSchema.required?.includes(propName) || false,
                 description: propSchema.description || '',
                 in: 'body'
+              })
+            }
+          }
+          
+          // 处理multipart/form-data类型（文件上传）
+          const formDataContent = content['multipart/form-data'] || {}
+          const formSchema = formDataContent.schema || {}
+          
+          if (formSchema.properties) {
+            for (const [propName, propSchema] of Object.entries(formSchema.properties)) {
+              // 检查是否为文件类型
+              const isFile = propSchema.type === 'string' && propSchema.format === 'binary'
+              parameters.push({
+                name: propName,
+                type: isFile ? 'file' : (propSchema.type || 'string'),
+                required: formSchema.required?.includes(propName) || false,
+                description: propSchema.description || '',
+                in: 'formData'
               })
             }
           }
@@ -253,10 +305,10 @@ const getApis = async () => {
   loadError.value = null
   
   try {
-    // 后端文档地址
+    // 后端文档地址 - 后端在8000端口运行
     const docUrls = [
-      { url: 'http://localhost:8001/api/v1/subapi/openapi.json', name: '子API服务' },
-      { url: 'http://localhost:8001/api/v1/openapi.json', name: '主API服务' }
+      { url: 'http://localhost:8000/api/v1/subapi/openapi.json', name: '子API服务' },
+      { url: 'http://localhost:8000/api/v1/openapi.json', name: '主API服务' }
     ]
     
     const allApis = []
@@ -350,7 +402,7 @@ const sendRequest = async () => {
   
   try {
     // 构建完整的后端URL
-    const baseUrl = 'http://localhost:8001'
+    const baseUrl = 'http://localhost:8000'
     let path = selectedApi.value.path
     
     // 确保path以/开头
@@ -361,13 +413,45 @@ const sendRequest = async () => {
     const url = `${baseUrl}${path}`
     const method = selectedApi.value.method
     
-    // 构建请求配置
-    const config = {
-      url,
-      method,
-      params: method === 'GET' ? requestParams : {},
-      data: method !== 'GET' ? requestParams : {},
-      timeout: 10000
+    // 检查是否有文件需要上传
+    const hasFileParams = Object.keys(fileParams).length > 0
+    
+    let config
+    
+    if (hasFileParams) {
+      // 文件上传请求 - 使用FormData
+      const formData = new FormData()
+      
+      // 添加文件参数
+      for (const [key, file] of Object.entries(fileParams)) {
+        formData.append(key, file)
+      }
+      
+      // 添加其他参数
+      for (const [key, value] of Object.entries(requestParams)) {
+        if (value !== undefined && value !== null && value !== '') {
+          formData.append(key, value)
+        }
+      }
+      
+      config = {
+        url,
+        method,
+        data: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        },
+        timeout: 30000
+      }
+    } else {
+      // 普通请求
+      config = {
+        url,
+        method,
+        params: method === 'GET' ? requestParams : {},
+        data: method !== 'GET' ? requestParams : {},
+        timeout: 10000
+      }
     }
     
     console.log('发送API请求:', config)
@@ -407,6 +491,24 @@ const resetRequest = () => {
   Object.keys(requestParams).forEach(key => {
     delete requestParams[key]
   })
+  // 清空文件参数
+  Object.keys(fileParams).forEach(key => {
+    delete fileParams[key]
+  })
+}
+
+// 处理文件选择
+const handleFileChange = (paramName, uploadFile) => {
+  if (uploadFile && uploadFile.raw) {
+    fileParams[paramName] = uploadFile.raw
+    console.log('文件已选择:', paramName, uploadFile.raw.name)
+  }
+}
+
+// 处理文件移除
+const handleFileRemove = (paramName) => {
+  delete fileParams[paramName]
+  console.log('文件已移除:', paramName)
 }
 
 // 格式化响应数据
@@ -1193,6 +1295,38 @@ const copyResponse = () => {
   background-color: var(--tech-card-bg);
   padding: 16px;
   border-radius: 8px;
+}
+
+/* 文件上传组件样式 */
+.file-uploader {
+  width: 100%;
+}
+
+.file-uploader .el-upload {
+  width: 100%;
+}
+
+.file-uploader .el-upload__tip {
+  color: var(--tech-text-muted);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+/* 无参数提示样式 */
+.no-params-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background-color: rgba(102, 126, 234, 0.1);
+  border-radius: 8px;
+  color: var(--tech-text-secondary);
+  font-size: 14px;
+}
+
+.no-params-tip .el-icon {
+  color: var(--tech-text-muted);
+  font-size: 18px;
 }
 
 .api-detail__actions {

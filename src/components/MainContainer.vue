@@ -18,12 +18,14 @@
       <!-- 底部聊天输入区域 -->
       <div class="app-main__chat-input" v-if="isChatPage">
         <ChatInput 
-              @send-message="handleSendMessage"
-              @upload-file="handleUploadFile"
-              @model-change="handleModelChange"
-              @new-chat="handleNewChat"
-              :current-model="chatPageRef?.value?.selectedModel"
-            />
+          @send-message="handleSendMessage"
+          @upload-file="handleUploadFile"
+          @model-change="handleModelChange"
+          @new-chat="handleNewChat"
+          @load-history="handleLoadHistory"
+          @delete-history="handleDeleteHistory"
+          :current-model="chatPageRef?.value?.selectedModel"
+        />
       </div>
     </div>
   </main>
@@ -126,6 +128,47 @@ const handleNewChat = () => {
     }
   } catch (error) {
     console.error('调用createNewSession方法时发生错误:', error)
+  }
+}
+
+// 从 ChatInput 或 History 弹窗加载指定会话
+const handleLoadHistory = (sessionId) => {
+  console.log('MainContainer 收到加载历史会话事件:', sessionId)
+
+  try {
+    const goAndSwitch = () => {
+      if (chatPageRef.value && typeof chatPageRef.value.switchSession === 'function') {
+        chatPageRef.value.switchSession(sessionId)
+        console.log('已切换到会话:', sessionId)
+      } else {
+        console.error('无法获取ChatPage组件实例或switchSession方法')
+      }
+    }
+
+    if (!isChatPage.value) {
+      router.push('/chat')
+      nextTick(goAndSwitch)
+    } else {
+      goAndSwitch()
+    }
+  } catch (error) {
+    console.error('加载历史会话时发生错误:', error)
+  }
+}
+
+// 从 ChatInput 删除指定会话
+const handleDeleteHistory = (sessionId) => {
+  console.log('MainContainer 收到删除历史会话事件:', sessionId)
+
+  try {
+    if (chatPageRef.value && typeof chatPageRef.value.deleteSession === 'function') {
+      chatPageRef.value.deleteSession(sessionId)
+      console.log('已删除会话:', sessionId)
+    } else {
+      console.error('无法获取ChatPage组件实例或deleteSession方法')
+    }
+  } catch (error) {
+    console.error('删除历史会话时发生错误:', error)
   }
 }
 </script>
