@@ -11,9 +11,13 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        secure: false,
-        // 如果需要重写路径，可以配置
-        // rewrite: (path) => path.replace(/^\/api/, '')
+        secure: false
+      },
+      // 将 /uploads 请求代理到后端服务器（头像等静态资源）
+      '/uploads': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false
       }
     }
   }

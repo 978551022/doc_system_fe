@@ -283,7 +283,7 @@
 <script setup>
 import { ref, reactive, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import userState, { updateUserInfo, updateUserAvatar } from '../utils/userStore.js'
+import userState, { updateUserInfo, updateUserAvatar, isLoggedIn } from '../utils/userStore.js'
 
 
 
@@ -413,19 +413,31 @@ const saveUserInfo = async () => {
     // 如果有选择的头像文件，先上传
     // 注意：为避免把临时 blob URL 持久化到 localStorage，这里从当前全局状态作为旧值起点
     let avatarUrl = userState.avatar
-    
+
     if (selectedAvatarFile.value) {
+      // 检查登录状态
+      if (!isLoggedIn()) {
+        ElMessage.warning('请先登录后再上传头像')
+        return
+      }
+
       const formData = new FormData()
       formData.append('file', selectedAvatarFile.value)
-      
+
       try {
-        // 上传头像到后端
+        // 上传头像到后端，携带 token
+        const headers = {}
+        if (userState.token) {
+          headers['Authorization'] = `Bearer ${userState.token}`
+        }
+
         const response = await fetch(uploadUrl, {
           method: 'POST',
           body: formData,
-          credentials: 'include'
+          credentials: 'include',
+          headers
         })
-        
+
         if (response.ok) {
           const result = await response.json()
 
@@ -461,6 +473,8 @@ const saveUserInfo = async () => {
 
           // 如果仍然拿不到，就保持原有头像（不覆盖为预览的 blob）
           if (extractedUrl && typeof extractedUrl === 'string') {
+            // 如果是完整URL（http/https），直接使用
+            // 如果是相对路径，也直接使用（通过Vite代理访问）
             avatarUrl = extractedUrl
           }
 
@@ -468,18 +482,22 @@ const saveUserInfo = async () => {
         } else {
           console.error('头像上传失败:', response.status, response.statusText)
           if (response.status === 401) {
-            // 未认证：保留当前本地头像（dataURL），但提示用户未登录
-            ElMessage.error('当前未登录，头像仅保存在本地浏览器，登录后可同步到服务器')
+            // 认证失败（token过期等），提示重新登录
+            ElMessage.error('登录已过期，请重新登录')
           } else {
             ElMessage.error('头像上传失败，请稍后重试')
           }
+          // 上传失败时不保存
+          return
         }
       } catch (uploadError) {
         console.error('头像上传异常:', uploadError)
         ElMessage.error('头像上传异常，请检查网络或后端服务')
+        // 上传失败时不保存
+        return
       }
     }
-    
+
     // 更新全局状态（会同步到 Header 和 Sidebar）
     updateUserInfo({
       username: userInfo.username,
@@ -487,12 +505,28 @@ const saveUserInfo = async () => {
       phone: userInfo.phone,
       avatar: avatarUrl
     })
-    
+
+    // 保存头像到localStorage缓存，避免后端未返回头像时丢失
+    if (avatarUrl && userState.userId) {
+      try {
+        let avatarCache = {}
+        const saved = localStorage.getItem('user_avatar_cache')
+        if (saved) {
+          avatarCache = JSON.parse(saved)
+        }
+        avatarCache[userState.userId] = avatarUrl
+        localStorage.setItem('user_avatar_cache', JSON.stringify(avatarCache))
+        console.log('头像已保存到缓存:', { userId: userState.userId, avatarUrl })
+      } catch (e) {
+        console.error('保存头像缓存失败:', e)
+      }
+    }
+
     // 清空待上传文件
     selectedAvatarFile.value = null
-    
+
     ElMessage.success('个人资料保存成功！')
-    
+
     console.log('已同步更新全局用户状态:', userState)
   } catch (error) {
     console.error('保存个人资料失败:', error)

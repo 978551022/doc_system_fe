@@ -4,8 +4,8 @@
     <div class="app-sidebar__header">
       <div class="app-sidebar__title">
         <i class="el-icon-folder-opened"></i>
-        <el-button 
-          type="primary" 
+        <el-button
+          type="primary"
           @click="handleNewChat"
           class="new-chat-btn"
           size="small"
@@ -14,8 +14,8 @@
           开启新对话
         </el-button>
       </div>
-      <el-button 
-        type="text" 
+      <el-button
+        type="text"
         @click="toggleCollapse"
         class="app-sidebar__collapse-btn"
         title="折叠/展开"
@@ -23,7 +23,7 @@
         <i :class="isCollapsed ? 'el-icon-s-unfold' : 'el-icon-s-fold'"></i>
       </el-button>
     </div>
-    
+
     <!-- 导航菜单 -->
     <el-menu
       :default-active="activeMenu"
@@ -40,7 +40,7 @@
           <span>智能对话</span>
         </template>
       </el-menu-item>
-      
+
       <!-- 文档列表 -->
       <el-menu-item index="/documents">
         <i class="el-icon-document-copy"></i>
@@ -48,7 +48,7 @@
           <span>文档列表</span>
         </template>
       </el-menu-item>
-      
+
       <!-- API接口测试 -->
       <el-menu-item index="/api-test">
         <i class="el-icon-s-cooperation"></i>
@@ -56,7 +56,7 @@
           <span>API接口测试</span>
         </template>
       </el-menu-item>
-      
+
       <!-- 历史对话 -->
       <el-menu-item index="/history">
         <i class="el-icon-time"></i>
@@ -64,7 +64,7 @@
           <span>历史对话</span>
         </template>
       </el-menu-item>
-      
+
       <!-- 设置 -->
       <el-menu-item index="/settings">
         <i class="el-icon-setting"></i>
@@ -72,7 +72,7 @@
           <span>设置</span>
         </template>
       </el-menu-item>
-      
+
       <!-- 帮助 -->
       <el-menu-item index="/help">
         <i class="el-icon-question"></i>
@@ -80,7 +80,7 @@
           <span>帮助</span>
         </template>
       </el-menu-item>
-      
+
       <!-- 关于 -->
       <el-menu-item index="/about">
         <i class="el-icon-info"></i>
@@ -93,8 +93,9 @@
     <!-- 侧边栏底部 -->
     <el-dropdown @command="handleUserCommand" trigger="click" class="app-sidebar__footer">
       <div class="user-dropdown-trigger" role="button">
-        <el-avatar :size="40" :src="userState.avatar" class="sidebar-user-avatar">
+        <el-avatar :size="40" :src="userState.avatar" class="sidebar-user-avatar" @error="handleAvatarError">
           <i v-if="!userState.avatar" class="el-icon-user-solid"></i>
+          <span v-else>{{ userState.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
         </el-avatar>
         <div class="app-sidebar__user-info" v-if="!isCollapsed">
           <div class="app-sidebar__username">{{ userState.username }}</div>
@@ -129,18 +130,40 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import userState from '../utils/userStore.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import userState, { logout as logoutUser, getToken } from '../utils/userStore.js'
+import { logout as logoutApi } from '../api/auth.js'
 
-// 定义事件
 const emit = defineEmits(['new-chat'])
 
-// 跳转到个人中心
+const route = useRoute()
+const router = useRouter()
+
+const isCollapsed = ref(false)
+
+// 头像加载失败处理
+const handleAvatarError = (e) => {
+  console.log('头像加载失败，使用默认显示')
+  return false
+}
+
+const toggleCollapse = () => {
+  isCollapsed.value = !isCollapsed.value
+}
+
+const activeMenu = computed(() => {
+  return route.path
+})
+
+const handleNewChat = () => {
+  emit('new-chat')
+}
+
 const goToProfile = () => {
   router.push('/settings')
 }
 
-// 处理用户下拉菜单命令
-const handleUserCommand = (command) => {
+const handleUserCommand = async (command) => {
   switch (command) {
     case 'profile':
       goToProfile()
@@ -149,38 +172,39 @@ const handleUserCommand = (command) => {
       router.push('/settings')
       break
     case 'contact':
-      // 联系我们功能，这里可以添加具体实现
       console.log('联系我们')
       break
     case 'logout':
-      // 退出登录功能，这里可以添加具体实现
-      console.log('退出登录')
+      try {
+        await ElMessageBox.confirm(
+          '确定要退出登录吗？',
+          '退出确认',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        const token = getToken()
+        if (token) {
+          try {
+            await logoutApi(token)
+          } catch (error) {
+            console.error('登出API调用失败:', error)
+          }
+        }
+        logoutUser()
+        ElMessage.success('已退出登录')
+        router.push('/login')
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('退出登录失败:', error)
+        }
+      }
       break
     default:
       break
   }
-}
-
-const route = useRoute()
-const router = useRouter()
-
-// 折叠状态
-const isCollapsed = ref(false)
-
-// 切换折叠
-const toggleCollapse = () => {
-  isCollapsed.value = !isCollapsed.value
-}
-
-// 激活菜单
-const activeMenu = computed(() => {
-  return route.path
-})
-
-// 处理新建对话
-const handleNewChat = () => {
-  // 发送事件给父组件，由父组件调用ChatPage的createNewSession方法
-  emit('new-chat')
 }
 </script>
 

@@ -1,63 +1,39 @@
 <template>
   <div class="app-container" :class="{ 'dark-theme': isDarkTheme }" :style="appStyle">
-    <Header />
-    <MainContainer />
+    <template v-if="!isAuthPage">
+      <Header />
+      <MainContainer />
+    </template>
+    <router-view v-else />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import Header from './components/Header.vue'
 import MainContainer from './components/MainContainer.vue'
 
-// 主题和字体大小设置
+const route = useRoute()
 const fontSize = ref(16)
-// 添加响应式变量存储当前主题
 const currentTheme = ref(localStorage.getItem('appTheme') || 'light')
-// 声明定时器变量
 let themeCheckInterval = null
 
-// 计算localStorage中的主题值，用于监听主题变化
+const isAuthPage = computed(() => {
+  return route.path === '/login' || route.path === '/register'
+})
+
 const localStorageTheme = computed(() => {
   return localStorage.getItem('appTheme') || 'light'
 })
 
-// 计算是否为深色主题 - 依赖于响应式变量currentTheme
 const isDarkTheme = computed(() => {
   if (currentTheme.value === 'auto') {
-    // 检测系统主题
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
   }
   return currentTheme.value === 'dark'
 })
 
-// 生命周期钩子
-onMounted(() => {
-  // 加载设置
-  loadSettings()
-  
-  // 初始化currentTheme变量
-  currentTheme.value = localStorage.getItem('appTheme') || 'light'
-  
-  // 设置主题监听器
-  setupThemeListener()
-  
-  // 设置localStorage监听器
-  setupStorageListener()
-  
-  // 初始应用样式
-  document.body.style.fontSize = `${fontSize.value}px`
-  
-  // 添加定时器，定期检查localStorage中的主题变化
-  themeCheckInterval = setInterval(() => {
-    const savedTheme = localStorage.getItem('appTheme') || 'light'
-    if (savedTheme !== currentTheme.value) {
-      currentTheme.value = savedTheme
-    }
-  }, 1000) // 每秒检查一次
-})
-
-// 应用样式
 const appStyle = computed(() => {
   const savedFontSize = localStorage.getItem('appFontSize')
   const currentFontSize = savedFontSize ? parseInt(savedFontSize) : fontSize.value
@@ -66,24 +42,19 @@ const appStyle = computed(() => {
   }
 })
 
-// 从localStorage加载设置
 const loadSettings = () => {
   const savedFontSize = localStorage.getItem('appFontSize')
-  
   if (savedFontSize) {
     fontSize.value = parseInt(savedFontSize)
   }
 }
 
-// 监听localStorage变化，实时更新主题和字体大小 - 用于多标签页同步
 const setupStorageListener = () => {
   const handleStorageChange = (e) => {
     if (e.key === 'appFontSize') {
       fontSize.value = e.newValue ? parseInt(e.newValue) : 16
     }
-    // 当主题变化时，更新currentTheme响应式变量
     if (e.key === 'appTheme') {
-      // 只有当newValue与currentTheme.value不同时才更新，避免死循环
       if (e.newValue !== currentTheme.value) {
         currentTheme.value = e.newValue || 'light'
       }
@@ -92,17 +63,28 @@ const setupStorageListener = () => {
   
   window.addEventListener('storage', handleStorageChange)
   
-  // 清理函数
   return () => {
     window.removeEventListener('storage', handleStorageChange)
   }
 }
 
-// 监听主题变化，应用到body
+const setupThemeListener = () => {
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  
+  const handleThemeChange = () => {
+    currentTheme.value = localStorage.getItem('appTheme') || 'light'
+  }
+  
+  mediaQuery.addEventListener('change', handleThemeChange)
+  
+  return () => {
+    mediaQuery.removeEventListener('change', handleThemeChange)
+  }
+}
+
 watch(
   isDarkTheme,
   (isDark) => {
-    // 无论主题如何变化，都重新计算并应用主题
     if (isDark) {
       document.body.classList.add('dark-theme')
     } else {
@@ -112,57 +94,25 @@ watch(
   { immediate: true }
 )
 
-// 监听系统主题变化，确保跟随系统时能正确更新
-const setupThemeListener = () => {
-  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-  
-  const handleThemeChange = (e) => {
-    // 当系统主题变化时，不需要更新currentTheme
-    // isDarkTheme计算属性会自动重新计算，因为它依赖于window.matchMedia
-    // 但我们可以通过更新currentTheme来触发重新计算
-    currentTheme.value = localStorage.getItem('appTheme') || 'light'
-  }
-  
-  mediaQuery.addEventListener('change', handleThemeChange)
-  
-  // 清理函数
-  return () => {
-    mediaQuery.removeEventListener('change', handleThemeChange)
-  }
-}
-
-// 监听字体大小变化，应用到body
 watch(fontSize, (newValue) => {
   document.body.style.fontSize = `${newValue}px`
 })
 
-// 生命周期钩子
 onMounted(() => {
-  // 加载设置
   loadSettings()
-  
-  // 初始化currentTheme变量
   currentTheme.value = localStorage.getItem('appTheme') || 'light'
-  
-  // 设置主题监听器
   setupThemeListener()
-  
-  // 设置localStorage监听器
   setupStorageListener()
-  
-  // 初始应用样式
   document.body.style.fontSize = `${fontSize.value}px`
   
-  // 添加定时器，定期检查localStorage中的主题变化
   themeCheckInterval = setInterval(() => {
     const savedTheme = localStorage.getItem('appTheme') || 'light'
     if (savedTheme !== currentTheme.value) {
       currentTheme.value = savedTheme
     }
-  }, 1000) // 每秒检查一次
+  }, 1000)
 })
 
-// 在组件卸载时清除定时器
 onUnmounted(() => {
   if (themeCheckInterval) {
     clearInterval(themeCheckInterval)
@@ -171,9 +121,7 @@ onUnmounted(() => {
 </script>
 
 <style>
-/* 全局变量定义 - IT行业高级简约风格 */
 :root {
-  /* 浅色主题变量 - 专业简约风格 */
   --primary-color: #4f46e5;
   --primary-hover: #4338ca;
   --primary-light: #818cf8;
@@ -213,7 +161,6 @@ onUnmounted(() => {
   --radius-xl: 24px;
 }
 
-/* 深色主题变量 - 现代暗黑风格 */
 .dark-theme {
   --primary-color: #818cf8;
   --primary-hover: #6366f1;
@@ -247,7 +194,6 @@ onUnmounted(() => {
   --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
-/* 全局样式重置 */
 * {
   margin: 0;
   padding: 0;
@@ -279,7 +225,6 @@ body {
   transition: var(--transition);
 }
 
-/* 深色主题样式 - 使用CSS变量 */
 .dark-theme body {
   background-color: var(--background-color);
   color: var(--text-primary);
@@ -289,7 +234,6 @@ body {
   background-color: var(--background-color);
 }
 
-/* 深色主题下的组件样式 - 使用CSS变量 */
 .dark-theme .el-card,
 .dark-theme .el-card__header {
   background-color: var(--card-background);
@@ -444,7 +388,6 @@ body {
   color: var(--text-muted);
 }
 
-/* 主题切换过渡效果 */
 .app-container,
 body,
 .el-card,

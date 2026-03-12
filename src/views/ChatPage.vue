@@ -806,18 +806,22 @@ const deleteSession = (sessionId) => {
   }
 }
 
-// 保存聊天记录到本地存储
+// 保存聊天记录到本地存储（与用户ID绑定，实现多账号聊天记录隔离）
 const saveChatHistory = () => {
-  localStorage.setItem('chatHistory', JSON.stringify({
+  const userId = userState.userId || 'guest'
+  const storageKey = `chatHistory_${userId}`
+  localStorage.setItem(storageKey, JSON.stringify({
     chatSessions: chatSessions.value,
     currentSessionId: currentSessionId.value,
     selectedModel: selectedModel.value
   }))
 }
 
-// 从本地存储加载聊天记录
+// 从本地存储加载聊天记录（与用户ID绑定）
 const loadChatHistory = () => {
-  const savedHistory = localStorage.getItem('chatHistory')
+  const userId = userState.userId || 'guest'
+  const storageKey = `chatHistory_${userId}`
+  const savedHistory = localStorage.getItem(storageKey)
   if (savedHistory) {
     try {
       const { chatSessions: savedSessions, currentSessionId: savedSessionId, selectedModel: savedModel } = JSON.parse(savedHistory)
@@ -874,20 +878,52 @@ watch(
   }
 )
 
+// 监听用户ID变化，切换账号时重新加载聊天历史
+// 使用 flush: 'post' 确保在响应式更新完成后执行
+watch(
+  () => [userState.userId, userState.isLoggedIn],
+  ([newUserId, isLoggedIn], [oldUserId, wasLoggedIn]) => {
+    // 当用户ID或登录状态变化时，重新加载聊天历史
+    if (newUserId !== oldUserId || isLoggedIn !== wasLoggedIn) {
+      // 先重置为默认会话
+      chatSessions.value = [
+        {
+          id: 'session-1',
+          title: '新对话',
+          messages: [],
+          conversationHistory: [],
+          createdAt: new Date().toISOString(),
+          documentIds: []
+        }
+      ]
+      currentSessionId.value = 'session-1'
+
+      // 使用 nextTick 确保 DOM 更新后再加载历史
+      nextTick(() => {
+        loadChatHistory()
+      })
+    }
+  },
+  { flush: 'post' }
+)
+
 // 生命周期钩子
 onMounted(() => {
-  loadChatHistory()
+  // 使用 nextTick 确保 userState 已经从 localStorage 初始化完成
+  nextTick(() => {
+    loadChatHistory()
 
-  // 如果从 HistoryPage 带有 sessionId 查询参数，则切换到对应会话
-  const initialSessionId = Array.isArray(route.query.sessionId)
-    ? route.query.sessionId[0]
-    : route.query.sessionId
-  if (initialSessionId) {
-    const target = chatSessions.value.find(session => session.id === initialSessionId)
-    if (target) {
-      currentSessionId.value = initialSessionId
+    // 如果从 HistoryPage 带有 sessionId 查询参数，则切换到对应会话
+    const initialSessionId = Array.isArray(route.query.sessionId)
+      ? route.query.sessionId[0]
+      : route.query.sessionId
+    if (initialSessionId) {
+      const target = chatSessions.value.find(session => session.id === initialSessionId)
+      if (target) {
+        currentSessionId.value = initialSessionId
+      }
     }
-  }
+  })
   
   // 监听路由参数变化，支持在聊天页内通过修改 query 切换会话
   watch(

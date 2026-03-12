@@ -24,8 +24,9 @@
     <div class="app-header__right">
       <el-dropdown @command="handleUserCommand" trigger="click">
         <div class="user-avatar-wrapper">
-          <el-avatar :size="36" :src="userState.avatar" class="user-avatar">
+          <el-avatar :size="36" :src="userState.avatar" class="user-avatar" @error="handleAvatarError">
             <i v-if="!userState.avatar" class="el-icon-user-solid"></i>
+            <span v-else>{{ userState.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
           </el-avatar>
           <div class="user-info">
             <span class="user-name">{{ userState.username }}</span>
@@ -53,25 +54,56 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import userState from '../utils/userStore.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import userState, { logout as logoutUser, getToken } from '../utils/userStore.js'
+import { logout as logoutApi } from '../api/auth.js'
 
 const router = useRouter()
 
-// 跳转到聊天界面
+// 头像加载失败处理
+const handleAvatarError = (e) => {
+  console.log('头像加载失败，使用默认显示')
+  // 返回 false 告诉 el-avatar 使用默认的 slot 内容
+  return false
+}
+
 const goToChat = () => {
   router.push('/chat')
 }
 
-// 处理用户下拉菜单命令
-const handleUserCommand = (command) => {
+const handleUserCommand = async (command) => {
   switch (command) {
     case 'profile':
     case 'settings':
       router.push('/settings')
       break
     case 'logout':
-      // TODO: 实现退出登录功能
-      console.log('退出登录')
+      try {
+        await ElMessageBox.confirm(
+          '确定要退出登录吗？',
+          '退出确认',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        )
+        const token = getToken()
+        if (token) {
+          try {
+            await logoutApi(token)
+          } catch (error) {
+            console.error('登出API调用失败:', error)
+          }
+        }
+        logoutUser()
+        ElMessage.success('已退出登录')
+        router.push('/login')
+      } catch (error) {
+        if (error !== 'cancel') {
+          console.error('退出登录失败:', error)
+        }
+      }
       break
   }
 }

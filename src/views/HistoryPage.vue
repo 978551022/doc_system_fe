@@ -55,10 +55,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import userState from '../utils/userStore.js'
 
 const router = useRouter()
+
+// 当前用户的 localStorage key（与用户ID绑定）
+const getStorageKey = () => {
+  const userId = userState.userId || 'guest'
+  return `chatHistory_${userId}`
+}
 
 // 历史对话列表（来源于 ChatPage 持久化的 chatHistory）
 const historyList = ref([])
@@ -70,7 +77,8 @@ onMounted(() => {
 
 // 从本地存储加载真实的历史对话列表
 const loadHistoryList = () => {
-  const savedHistory = localStorage.getItem('chatHistory')
+  const storageKey = getStorageKey()
+  const savedHistory = localStorage.getItem(storageKey)
   if (!savedHistory) {
     historyList.value = []
     return
@@ -121,7 +129,8 @@ const loadHistory = (item) => {
 const deleteHistory = (id) => {
   historyList.value = historyList.value.filter(item => item.id !== id)
 
-  const savedHistory = localStorage.getItem('chatHistory')
+  const storageKey = getStorageKey()
+  const savedHistory = localStorage.getItem(storageKey)
   if (!savedHistory) return
 
   try {
@@ -133,7 +142,7 @@ const deleteHistory = (id) => {
       currentSessionId = chatSessions[0]?.id || ''
     }
 
-    localStorage.setItem('chatHistory', JSON.stringify({
+    localStorage.setItem(storageKey, JSON.stringify({
       ...parsed,
       chatSessions,
       currentSessionId
@@ -146,12 +155,13 @@ const deleteHistory = (id) => {
 // 清空历史（同步清理本地存储）
 const clearHistory = () => {
   historyList.value = []
-  const savedHistory = localStorage.getItem('chatHistory')
+  const storageKey = getStorageKey()
+  const savedHistory = localStorage.getItem(storageKey)
   if (!savedHistory) return
 
   try {
     const parsed = JSON.parse(savedHistory)
-    localStorage.setItem('chatHistory', JSON.stringify({
+    localStorage.setItem(storageKey, JSON.stringify({
       ...parsed,
       chatSessions: [],
       currentSessionId: ''
