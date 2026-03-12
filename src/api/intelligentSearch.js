@@ -22,6 +22,7 @@ const INTELLIGENT_SEARCH_BASE_URL = 'v1/docsearch/intelligent-search'
  * @param {Function} onChunk - 接收流式数据的回调函数
  * @param {Function} onMetadata - 接收元数据的回调函数
  * @param {Function} onError - 接收错误的回调函数
+ * @param {Function} onComplete - 接收完成通知的回调函数
  * @returns {Promise<Object>} 返回会话信息
  */
 export const intelligentQuery = async ({
@@ -34,7 +35,7 @@ export const intelligentQuery = async ({
   stream = true,
   online_search = false,
   deep_reasoning = false
-}, onChunk, onMetadata, onError) => {
+}, onChunk, onMetadata, onError, onComplete) => {
   const requestBody = {
     query,
     mode,
@@ -115,6 +116,9 @@ export const intelligentQuery = async ({
           case 'done':
             // 完成标记
             console.log('[智能查询] 服务器标记完成')
+            if (onComplete) {
+              onComplete()
+            }
             break
 
           default:
@@ -143,6 +147,10 @@ export const intelligentQuery = async ({
               processSSEEvent(event.trim())
             }
           }
+        }
+        // 调用完成回调
+        if (onComplete) {
+          onComplete()
         }
         break
       }
