@@ -57,10 +57,9 @@
               <div v-if="message.reasoningExpanded || message.reasoningCompleted" class="ai-divider"></div>
             </div>
 
-            <!-- 消息内容：支持Markdown渲染 -->
+            <!-- 消息内容：支持Markdown实时渲染 -->
             <div
               class="ai-message-content"
-              :class="{ 'ai-message-content--rendered': message.isComplete }"
               v-html="message.content"
             ></div>
           </template>
@@ -154,19 +153,140 @@ import 'highlight.js/styles/atom-one-dark.css'
 
 // 配置Markdown渲染
 marked.setOptions({
-  highlight: function(code, lang) {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        return hljs.highlight(code, { language: lang }).value
-      } catch (err) {
-        console.error('代码高亮失败:', err)
-      }
-    }
-    return hljs.highlightAuto(code).value
-  },
-  breaks: true, // 支持换行符
-  gfm: true // 支持GitHub风格Markdown
+  breaks: true,
+  gfm: true
 })
+
+// 自定义renderer来处理代码高亮
+const renderer = new marked.Renderer()
+
+// 语言显示名称映射
+const langDisplayNames = {
+  'javascript': 'JavaScript',
+  'typescript': 'TypeScript',
+  'python': 'Python',
+  'java': 'Java',
+  'cpp': 'C++',
+  'c': 'C',
+  'csharp': 'C#',
+  'go': 'Go',
+  'rust': 'Rust',
+  'ruby': 'Ruby',
+  'php': 'PHP',
+  'swift': 'Swift',
+  'kotlin': 'Kotlin',
+  'scala': 'Scala',
+  'r': 'R',
+  'sql': 'SQL',
+  'bash': 'Bash',
+  'shell': 'Shell',
+  'json': 'JSON',
+  'yaml': 'YAML',
+  'xml': 'XML',
+  'html': 'HTML',
+  'css': 'CSS',
+  'scss': 'SCSS',
+  'markdown': 'Markdown',
+  'plaintext': 'Text',
+  'text': 'Text'
+}
+
+// marked.js v17+ 使用 token 对象作为参数
+renderer.code = function(token) {
+  // token 结构: { type: 'code', lang: string, text: string }
+  const codeText = token.text || ''
+  const language = token.lang || ''
+
+  // 获取有效语言
+  const validLang = language && hljs.getLanguage(language) ? language : 'plaintext'
+
+  // 获取语言显示名称
+  const displayName = langDisplayNames[validLang.toLowerCase()] || validLang
+
+  // 生成唯一ID用于复制功能
+  const codeId = 'code-' + Math.random().toString(36).substr(2, 9)
+  // 转义代码内容以便在data属性中存储
+  const escapedCode = codeText.replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  // 复制按钮SVG图标
+  const copyIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>`
+
+  // 如果代码为空，返回空的代码块
+  if (!codeText) {
+    return `<div class="code-block-wrapper">
+      <div class="code-block-header">
+        <span class="code-block-lang">${displayName}</span>
+        <button class="code-block-copy-btn" data-code="" onclick="copyCodeBlock(this, '${codeId}')">
+          ${copyIcon} 复制
+        </button>
+      </div>
+      <pre><code class="hljs language-${validLang}"></code></pre>
+    </div>`
+  }
+
+  const highlighted = hljs.highlight(codeText, { language: validLang }).value
+
+  // 返回带有顶部栏和复制按钮的代码块
+  return `<div class="code-block-wrapper">
+    <div class="code-block-header">
+      <span class="code-block-lang">${displayName}</span>
+      <button class="code-block-copy-btn" data-code="${escapedCode}" onclick="copyCodeBlock(this, '${codeId}')">
+        ${copyIcon} 复制
+      </button>
+    </div>
+    <pre><code class="hljs language-${validLang}" id="${codeId}">${highlighted}</code></pre>
+  </div>`
+}
+
+// 全局复制函数 - 挂载到window对象
+window.copyCodeBlock = function(button, codeId) {
+  const code = button.getAttribute('data-code')
+  if (!code) return
+
+  // 解码HTML实体
+  const decodedCode = code.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+
+  // 使用Clipboard API复制
+  navigator.clipboard.writeText(decodedCode).then(() => {
+    // 复制成功，更改按钮文本
+    const originalContent = button.innerHTML
+    button.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+    </svg> 已复制`
+    button.classList.add('copied')
+
+    // 2秒后恢复原状
+    setTimeout(() => {
+      button.innerHTML = originalContent
+      button.classList.remove('copied')
+    }, 2000)
+  }).catch(err => {
+    console.error('复制失败:', err)
+  })
+}
+
+// 设置自定义renderer
+marked.setOptions({
+  renderer: renderer
+})
+
+// 测试marked是否正常工作
+console.log('[marked配置测试] marked版本:', marked.version)
+console.log('[marked配置测试] marked.parse函数类型:', typeof marked.parse)
+
+// 简单测试 - 解析一段markdown
+const testMarkdown = '# 测试标题\n\n```python\nprint("Hello")\n```\n\n这是**测试**段落。'
+console.log('[marked配置测试] 测试markdown:', testMarkdown)
+try {
+  const testResult = marked.parse(testMarkdown)
+  console.log('[marked配置测试] 测试解析成功')
+  console.log('[marked配置测试] 解析结果类型:', typeof testResult)
+  console.log('[marked配置测试] 解析结果:', testResult)
+} catch (e) {
+  console.error('[marked配置测试] 测试解析失败:', e)
+}
 
 // 路由对象，用于接收 HistoryPage 传入的会话 ID
 const route = useRoute()
@@ -602,25 +722,37 @@ const handleUploadFile = (file) => {
 
 // 解析内容和推理过程，分离显示（流式渲染时调用）
 const parseContentAndReasoning = (message, rawContent) => {
-  // 保存原始内容
-  message.rawContent = rawContent
+  // 调试计数器
+  if (!message._debugLogCount) {
+    message._debugLogCount = 0
+  }
+  message._debugLogCount++
+
+  // 保存原始内容 - 确保是字符串类型
+  const rawContentStr = String(rawContent || '')
+  message.rawContent = rawContentStr
 
   // 过滤掉元数据信息
-  let cleanContent = rawContent
+  let cleanContent = rawContentStr
 
-  // 移除类似 content='' additional_kwargs={} response_metadata={} id='run-...' 的元数据行
-  cleanContent = cleanContent.replace(/^content=''?\s*(additional_kwargs=.*?response_metadata=.*?id='run-[^']*\')?\s*$/gm, '')
-  cleanContent = cleanContent.replace(/^content=''?\s*(additional_kwargs=\{.*?\})?\s*(response_metadata=\{.*?\})?\s*id='[^']*'\s*$/gm, '')
+  // 移除元数据行
+  cleanContent = cleanContent.replace(/^content=''?\s*$/gm, '')
+  cleanContent = cleanContent.replace(/^content=''?\s*additional_kwargs=\{.*?\}\s*$/gm, '')
+  cleanContent = cleanContent.replace(/^additional_kwargs=\{.*?\}\s*$/gm, '')
+  cleanContent = cleanContent.replace(/^response_metadata=\{.*?\}\s*$/gm, '')
+  cleanContent = cleanContent.replace(/^id='run-[^']*'\s*$/gm, '')
+  cleanContent = cleanContent.replace(/^name='[^']*'\s*$/gm, '')
+  cleanContent = cleanContent.replace(/^content=''?\s*(additional_kwargs=\{.*?\})?\s*(response_metadata=\{.*?\})?\s*(id='run-[^']*')?\s*$/gm, '')
 
-  // 移除 usage_metadata 行，但先提取token信息
-  const tokenMatch = cleanContent.match(/usage_metadata=\{[^}]*total_tokens\s*:\s*(\d+)[^}]*\}/g)
+  // 移除 usage_metadata 并提取token
+  const tokenMatch = cleanContent.match(/usage_metadata=\{[^}]*total_tokens\s*[:=]\s*(\d+)[^}]*\}/)
   if (tokenMatch && !message.tokens) {
-    const tokens = tokenMatch[0].match(/total_tokens\s*:\s*(\d+)/)
-    if (tokens && tokens[1]) {
-      message.tokens = parseInt(tokens[1])
-    }
+    message.tokens = parseInt(tokenMatch[1])
   }
   cleanContent = cleanContent.replace(/usage_metadata=\{[^}]*\}\s*/g, '')
+
+  // 清理多余空行
+  cleanContent = cleanContent.replace(/\n\s*\n\s*\n/g, '\n\n')
 
   // 处理深度推理标记
   const reasoningStartTag = '<推理过程>'
@@ -629,25 +761,20 @@ const parseContentAndReasoning = (message, rawContent) => {
   const answerEndTag = '</最终答案>'
 
   let reasoningText = ''
-  let answerText = ''
 
-  if (cleanContent.includes(reasoningStartTag) && cleanContent.includes(reasoningEndTag)) {
-    // 有推理过程标记
+  if (cleanContent.includes(reasoningStartTag)) {
     const reasoningStart = cleanContent.indexOf(reasoningStartTag)
     const reasoningEnd = cleanContent.indexOf(reasoningEndTag)
 
-    if (reasoningStart !== -1 && reasoningEnd !== -1) {
+    if (reasoningEnd !== -1) {
       reasoningText = cleanContent.substring(reasoningStart + reasoningStartTag.length, reasoningEnd)
       message.reasoningRawContent = reasoningText
-      // 移除推理过程部分
       cleanContent = cleanContent.substring(0, reasoningStart) + cleanContent.substring(reasoningEnd + reasoningEndTag.length)
       message.reasoningCompleted = true
+    } else {
+      message.reasoningRawContent = cleanContent.substring(reasoningStart + reasoningStartTag.length)
+      cleanContent = cleanContent.substring(0, reasoningStart)
     }
-  } else if (cleanContent.includes(reasoningStartTag)) {
-    // 推理过程未完成，提取已部分
-    const reasoningStart = cleanContent.indexOf(reasoningStartTag)
-    message.reasoningRawContent = cleanContent.substring(reasoningStart + reasoningStartTag.length)
-    cleanContent = cleanContent.substring(0, reasoningStart)
   }
 
   // 处理最终答案标记
@@ -655,65 +782,119 @@ const parseContentAndReasoning = (message, rawContent) => {
     const answerStart = cleanContent.indexOf(answerStartTag)
     const answerEnd = cleanContent.indexOf(answerEndTag)
 
-    if (answerStart !== -1 && answerEnd !== -1) {
-      answerText = cleanContent.substring(answerStart + answerStartTag.length, answerEnd)
-      cleanContent = answerText
+    if (answerEnd !== -1) {
+      cleanContent = cleanContent.substring(answerStart + answerStartTag.length, answerEnd)
     } else if (answerStart !== -1) {
-      // 只有开始标记，移除它
       cleanContent = cleanContent.substring(answerStart + answerStartTag.length)
     }
   }
 
-  // 保存推理过程的原始内容（不解析Markdown，保持纯文本）
+  // 保存推理过程内容
   message.reasoningContent = reasoningText || message.reasoningRawContent || ''
 
-  // 更新最终答案内容（流式时显示纯文本）
-  message.content = cleanContent.trim()
+  // 准备解析的内容
+  let contentToParse = cleanContent.trim()
+
+  // 处理不完整代码块
+  const codeBlockCount = (contentToParse.match(/```/g) || []).length
+  if (codeBlockCount % 2 !== 0) {
+    contentToParse += '\n```'
+  }
+
+  // 调试日志（仅前3次和每50次）
+  const shouldLog = message._debugLogCount <= 3 || message._debugLogCount % 50 === 0
+  if (shouldLog) {
+    console.log(`=== [流式解析 #${message._debugLogCount}] ===`)
+    console.log('1. 原始类型:', typeof rawContent)
+    console.log('2. 清理后类型:', typeof contentToParse)
+    console.log('3. 清理后长度:', contentToParse.length)
+    console.log('4. 清理后内容(前100字符):', contentToParse.substring(0, 100))
+    console.log('5. marked.parse类型:', typeof marked.parse)
+  }
+
+  // 解析Markdown
+  try {
+    console.log('[流式解析] 开始调用 marked.parse()...')
+    const htmlContent = marked.parse(contentToParse)
+    console.log('[流式解析] marked.parse() 成功返回, 类型:', typeof htmlContent, '长度:', htmlContent.length)
+
+    if (shouldLog) {
+      console.log('6. HTML输出(前200字符):', htmlContent.substring(0, 200))
+    }
+
+    // 直接设置HTML内容
+    message.content = htmlContent
+    console.log('[流式解析] message.content 已设置为HTML')
+  } catch (e) {
+    console.error('[流式解析] Markdown解析失败:', e)
+    console.error('[流式解析] 错误堆栈:', e.stack)
+    // 解析失败时的备用方案
+    message.content = contentToParse
+  }
 }
 
 // 渲染完成后解析Markdown
 const parseMarkdown = (message) => {
-  if (message.isComplete) {
-    // 解析最终答案的Markdown
-    if (message.rawContent) {
-      const cleanContent = message.rawContent
-        .replace(/^content=''?\s*(additional_kwargs=.*?response_metadata=.*?id='run-[^']*\')?\s*$/gm, '')
-        .replace(/^content=''?\s*(additional_kwargs=\{.*?\})?\s*(response_metadata=\{.*?\})?\s*id='[^']*'\s*$/gm, '')
-        .replace(/usage_metadata=\{[^}]*\}\s*/g, '')
+  if (message.isComplete && message.rawContent) {
+    // 使用与parseContentAndReasoning相同的清理逻辑
+    let cleanContent = message.rawContent
 
-      // 分离推理和答案
-      const reasoningStartTag = '<推理过程>'
-      const reasoningEndTag = '</推理过程>'
-      const answerStartTag = '<最终答案>'
-      const answerEndTag = '</最终答案>'
+    // 移除相同的元数据信息
+    cleanContent = cleanContent.replace(/^content=''?\s*$/gm, '')
+    cleanContent = cleanContent.replace(/^content=''?\s*additional_kwargs=\{.*?\}\s*$/gm, '')
+    cleanContent = cleanContent.replace(/^additional_kwargs=\{.*?\}\s*$/gm, '')
+    cleanContent = cleanContent.replace(/^response_metadata=\{.*?\}\s*$/gm, '')
+    cleanContent = cleanContent.replace(/^id='run-[^']*'\s*$/gm, '')
+    cleanContent = cleanContent.replace(/^name='[^']*'\s*$/gm, '')
+    cleanContent = cleanContent.replace(/^content=''?\s*(additional_kwargs=\{.*?\})?\s*(response_metadata=\{.*?\})?\s*(id='run-[^']*')?\s*$/gm, '')
+    cleanContent = cleanContent.replace(/usage_metadata=\{[^}]*\}\s*/g, '')
 
-      let finalAnswer = cleanContent
+    // 清理多余的空行
+    cleanContent = cleanContent.replace(/\n\s*\n\s*\n/g, '\n\n')
 
-      // 移除推理过程
-      if (finalAnswer.includes(reasoningStartTag) && finalAnswer.includes(reasoningEndTag)) {
-        const reasoningStart = finalAnswer.indexOf(reasoningStartTag)
-        const reasoningEnd = finalAnswer.indexOf(reasoningEndTag)
-        finalAnswer = finalAnswer.substring(0, reasoningStart) + finalAnswer.substring(reasoningEnd + reasoningEndTag.length)
+    // 分离推理和答案
+    const reasoningStartTag = '<推理过程>'
+    const reasoningEndTag = '</推理过程>'
+    const answerStartTag = '<最终答案>'
+    const answerEndTag = '</最终答案>'
+
+    let finalAnswer = cleanContent
+
+    // 移除推理过程
+    if (finalAnswer.includes(reasoningStartTag) && finalAnswer.includes(reasoningEndTag)) {
+      const reasoningStart = finalAnswer.indexOf(reasoningStartTag)
+      const reasoningEnd = finalAnswer.indexOf(reasoningEndTag)
+      finalAnswer = finalAnswer.substring(0, reasoningStart) + finalAnswer.substring(reasoningEnd + reasoningEndTag.length)
+    } else if (finalAnswer.includes(reasoningStartTag)) {
+      // 推理过程未完成，移除开始标记之后的所有内容
+      finalAnswer = finalAnswer.substring(0, finalAnswer.indexOf(reasoningStartTag))
+    }
+
+    // 处理最终答案标记
+    if (finalAnswer.includes(answerStartTag)) {
+      const answerStart = finalAnswer.indexOf(answerStartTag)
+      const answerEnd = finalAnswer.indexOf(answerEndTag)
+      if (answerStart !== -1 && answerEnd !== -1) {
+        finalAnswer = finalAnswer.substring(answerStart + answerStartTag.length, answerEnd)
+      } else if (answerStart !== -1) {
+        finalAnswer = finalAnswer.substring(answerStart + answerStartTag.length)
       }
+    }
 
-      // 处理最终答案标记
-      if (finalAnswer.includes(answerStartTag)) {
-        const answerStart = finalAnswer.indexOf(answerStartTag)
-        const answerEnd = finalAnswer.indexOf(answerEndTag)
-        if (answerStart !== -1 && answerEnd !== -1) {
-          finalAnswer = finalAnswer.substring(answerStart + answerStartTag.length, answerEnd)
-        } else if (answerStart !== -1) {
-          finalAnswer = finalAnswer.substring(answerStart + answerStartTag.length)
-        }
-      }
+    // 清理多余空格和空行
+    finalAnswer = finalAnswer.trim().replace(/\n\s*\n\s*\n/g, '\n\n')
 
-      // 解析Markdown
-      try {
-        message.content = marked.parse(finalAnswer.trim())
-      } catch (e) {
-        console.error('Markdown解析失败:', e)
-        message.content = finalAnswer.trim()
-      }
+    // 解析Markdown - renderer已经在marked.setOptions中配置，不需要传递
+    try {
+      console.log('[Markdown解析] 原始内容:', finalAnswer.substring(0, 100) + '...')
+      const htmlResult = marked.parse(finalAnswer)
+      console.log('[Markdown解析] 渲染结果长度:', htmlResult.length)
+      // 打印前200个字符查看格式
+      console.log('[Markdown解析] 渲染结果预览:', htmlResult.substring(0, 200) + '...')
+      message.content = htmlResult
+    } catch (e) {
+      console.error('Markdown解析失败:', e)
+      message.content = finalAnswer
     }
   }
 }
@@ -794,20 +975,27 @@ const deleteMessage = (messageId) => {
   }
 }
 
-// 滚动到底部
+// 滚动到底部（优化版，减少抖动）
 const scrollToBottom = (smooth = true) => {
   nextTick(() => {
     const container = messagesContainer.value
     if (container) {
-      const targetScrollTop = container.scrollHeight
+      // 检查用户是否正在查看历史消息（距离底部超过100px）
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
 
-      if (smooth) {
-        container.scrollTo({
-          top: targetScrollTop,
-          behavior: 'smooth'
-        })
-      } else {
-        container.scrollTop = targetScrollTop
+      // 只有当用户接近底部时才自动滚动
+      if (isNearBottom || !smooth) {
+        const targetScrollTop = container.scrollHeight
+
+        // 流式输出时使用即时滚动，避免抖动
+        if (smooth) {
+          container.scrollTo({
+            top: targetScrollTop,
+            behavior: 'auto' // 改为auto，避免smooth动画与内容更新冲突
+          })
+        } else {
+          container.scrollTop = targetScrollTop
+        }
       }
     }
   })
@@ -1202,6 +1390,11 @@ defineExpose({
   border-bottom-right-radius: var(--radius-sm);
 }
 
+/* 浅色模式下用户消息背景色优化 - 使用蓝色渐变替代紫色 */
+:root .chat-message--user .chat-message__text {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
 .chat-message--assistant .chat-message__text {
   background-color: var(--card-background);
   color: var(--text-primary);
@@ -1215,158 +1408,347 @@ defineExpose({
   line-height: 1.8;
   letter-spacing: 0.01em;
   word-break: break-word;
-  white-space: pre-wrap;
+  white-space: normal; /* HTML内容正常处理换行 */
 }
 
-.ai-message-content--rendered {
-  white-space: normal;
-}
-
-/* AI消息Markdown样式 */
+/* AI消息Markdown样式 - 始终应用 */
 .ai-message-content h1,
 .ai-message-content h2,
 .ai-message-content h3,
 .ai-message-content h4,
 .ai-message-content h5,
 .ai-message-content h6 {
-  margin-top: 1.2em;
-  margin-bottom: 0.6em;
+  margin-top: 2em;
+  margin-bottom: 1em;
   font-weight: 600;
   line-height: 1.4;
   color: var(--text-primary);
 }
 
-.ai-message-content h1 { font-size: 1.8em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
-.ai-message-content h2 { font-size: 1.5em; border-bottom: 1px solid var(--border-color); padding-bottom: 0.3em; }
-.ai-message-content h3 { font-size: 1.3em; }
-.ai-message-content h4 { font-size: 1.15em; }
-.ai-message-content h5 { font-size: 1.05em; }
+.ai-message-content h1:first-child,
+.ai-message-content h2:first-child,
+.ai-message-content h3:first-child {
+  margin-top: 0;
+}
+
+.ai-message-content h1 {
+  font-size: 1.85em;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 0.4em;
+}
+.ai-message-content h2 {
+  font-size: 1.55em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.35em;
+}
+.ai-message-content h3 { font-size: 1.35em; }
+.ai-message-content h4 { font-size: 1.2em; }
+.ai-message-content h5 { font-size: 1.1em; }
 .ai-message-content h6 { font-size: 1em; color: var(--text-muted); }
 
 .ai-message-content p {
-  margin: 0.8em 0;
-  line-height: 1.8;
+  margin: 1.2em 0;
+  line-height: 1.9;
 }
 
 .ai-message-content ul,
 .ai-message-content ol {
-  margin: 0.8em 0;
-  padding-left: 1.8em;
-  line-height: 1.8;
+  margin: 1.2em 0;
+  padding-left: 2em;
+  line-height: 1.9;
 }
 
 .ai-message-content li {
-  margin: 0.4em 0;
+  margin: 0.5em 0;
 }
 
 .ai-message-content ul li {
   list-style-type: disc;
 }
 
+.ai-message-content ul li::marker {
+  color: var(--primary-color);
+}
+
 .ai-message-content ol li {
   list-style-type: decimal;
 }
 
+.ai-message-content ol li::marker {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* 行内代码样式 */
 .ai-message-content code {
-  background-color: rgba(127, 127, 127, 0.15);
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
+  background-color: rgba(127, 127, 127, 0.12);
+  padding: 0.25em 0.5em;
+  border-radius: 5px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.9em;
   color: var(--primary-color);
+  border: 1px solid rgba(127, 127, 127, 0.2);
 }
 
-.ai-message-content pre {
-  background-color: #282c34;
-  padding: 16px;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 1em 0;
-  line-height: 1.5;
-  /* 移除color属性，让highlight.js的彩色高亮生效 */
+/* 代码块包装器样式 */
+.ai-message-content :deep(.code-block-wrapper) {
+  margin: 2em 0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  position: relative;
 }
 
-.ai-message-content pre code {
-  background-color: transparent;
-  padding: 0;
-  /* 移除color: inherit，让highlight.js的高亮颜色显示 */
-  font-size: 0.95em;
+/* 代码块顶部栏样式 */
+.ai-message-content :deep(.code-block-header) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #2d333b 0%, #242930 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+/* 浅色模式下代码块样式优化 */
+:root .ai-message-content :deep(.code-block-wrapper) {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+:root .ai-message-content :deep(.code-block-header) {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+:root .ai-message-content :deep(.code-block-lang) {
+  color: #475569;
+}
+
+:root .ai-message-content pre {
+  background-color: #f8fafc;
+}
+
+:root .ai-message-content pre :deep(code.hljs) {
+  color: #334155;
+}
+
+.ai-message-content :deep(.code-block-lang) {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7aa2f7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
-.dark-theme .ai-message-content pre {
-  background-color: #1e2127;
+/* 代码块复制按钮样式 */
+.ai-message-content :deep(.code-block-copy-btn) {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #7aa2f7;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
-/* 增强代码高亮颜色效果 */
-.ai-message-content pre .hljs-keyword {
+:root .ai-message-content :deep(.code-block-copy-btn) {
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #64748b;
+}
+
+.ai-message-content :deep(.code-block-copy-btn:hover) {
+  background: rgba(127, 127, 127, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+:root .ai-message-content :deep(.code-block-copy-btn:hover) {
+  background: rgba(0, 0, 0, 0.06);
+  border-color: rgba(0, 0, 0, 0.25);
+  color: #334155;
+}
+
+.ai-message-content :deep(.code-block-copy-btn svg) {
+  width: 14px;
+  height: 14px;
+}
+
+/* 复制成功状态 */
+.ai-message-content :deep(.code-block-copy-btn.copied) {
+  color: #22c55e !important;
+  border-color: #22c55e !important;
+}
+
+:root .ai-message-content :deep(.code-block-copy-btn.copied) {
+  color: #16a34a !important;
+  border-color: #16a34a !important;
+}
+
+/* 代码块容器样式 - 优化外观 */
+.ai-message-content pre {
+  background-color: #1a1d23;
+  padding: 0;
+  border-radius: 0;
+  overflow-x: auto;
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* 代码块内部的包装器，用于添加顶部栏 */
+.ai-message-content pre :deep(code.hljs) {
+  background-color: transparent !important;
+  padding: 18px 20px;
+  font-size: 0.94em;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  display: block;
+  color: #abb2bf;
+  line-height: 1.6;
+}
+
+.dark-theme .ai-message-content pre {
+  background-color: #0d1117;
+}
+
+.dark-theme .ai-message-content :deep(.code-block-wrapper) {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.dark-theme .ai-message-content :deep(.code-block-header) {
+  background: linear-gradient(135deg, #1e222a 0%, #16191f 100%);
+}
+
+.dark-theme .ai-message-content :deep(.code-block-copy-btn) {
+  color: #7aa2f7;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* 增强代码高亮颜色效果 - 使用:deep()穿透 */
+.ai-message-content pre :deep(.hljs-keyword) {
   color: #c678dd;
   font-weight: 600;
 }
 
-.ai-message-content pre .hljs-string {
+.ai-message-content pre :deep(.hljs-string) {
   color: #98c379;
 }
 
-.ai-message-content pre .hljs-number {
+.ai-message-content pre :deep(.hljs-number) {
   color: #d19a66;
 }
 
-.ai-message-content pre .hljs-comment {
+.ai-message-content pre :deep(.hljs-comment) {
   color: #5c6370;
   font-style: italic;
 }
 
-.ai-message-content pre .hljs-function {
+.ai-message-content pre :deep(.hljs-function) {
   color: #61afef;
 }
 
-.ai-message-content pre .hljs-title {
+.ai-message-content pre :deep(.hljs-title) {
   color: #e5c07b;
 }
 
-.ai-message-content pre .hljs-params {
+.ai-message-content pre :deep(.hljs-params) {
   color: #e5c07b;
 }
 
-.ai-message-content pre .hljs-built_in {
+.ai-message-content pre :deep(.hljs-built_in) {
   color: #e6c07b;
 }
 
-.ai-message-content pre .hljs-literal {
+.ai-message-content pre :deep(.hljs-literal) {
   color: #56b6c2;
 }
 
-.ai-message-content pre .hljs-class {
+.ai-message-content pre :deep(.hljs-class) {
   color: #e5c07b;
 }
 
-.ai-message-content pre .hljs-tag {
+.ai-message-content pre :deep(.hljs-tag) {
   color: #e06c75;
 }
 
-.ai-message-content pre .hljs-name {
+.ai-message-content pre :deep(.hljs-name) {
   color: #e06c75;
 }
 
-.ai-message-content pre .hljs-attr {
+.ai-message-content pre :deep(.hljs-attr) {
   color: #d19a66;
 }
 
-.ai-message-content pre .hljs-variable {
+.ai-message-content pre :deep(.hljs-variable) {
   color: #e06c75;
 }
 
-.ai-message-content pre .hljs-operator {
+.ai-message-content pre :deep(.hljs-operator) {
   color: #56b6c2;
 }
 
+.ai-message-content pre :deep(.hljs-property) {
+  color: #d19a66;
+}
+
+.ai-message-content pre :deep(.hljs-selector-tag) {
+  color: #e06c75;
+}
+
+.ai-message-content pre :deep(.hljs-selector-id) {
+  color: #61afef;
+}
+
+.ai-message-content pre :deep(.hljs-selector-class) {
+  color: #e5c07b;
+}
+
+.ai-message-content pre :deep(.hljs-type) {
+  color: #e5c07b;
+}
+
+.ai-message-content pre :deep(.hljs-symbol) {
+  color: #56b6c2;
+}
+
+.ai-message-content pre :deep(.hljs-bullet) {
+  color: #61afef;
+}
+
+.ai-message-content pre :deep(.hljs-link) {
+  color: #61afef;
+  text-decoration: underline;
+}
+
+.ai-message-content pre :deep(.hljs-meta) {
+  color: #5c6370;
+}
+
+.ai-message-content pre :deep(.hljs-deletion) {
+  color: #e06c75;
+  background-color: #5c1e1e;
+}
+
+.ai-message-content pre :deep(.hljs-addition) {
+  color: #98c379;
+  background-color: #1e3a1e;
+}
+
+/* 其他Markdown元素样式 - 优化间距和视觉效果 */
 .ai-message-content blockquote {
   border-left: 4px solid var(--primary-color);
-  padding-left: 1em;
-  margin: 1em 0;
+  padding: 1em 1.5em;
+  margin: 1.5em 0;
   color: var(--text-secondary);
   font-style: italic;
+  background-color: rgba(127, 127, 127, 0.05);
+  border-radius: 0 8px 8px 0;
 }
 
 .ai-message-content a {
@@ -1380,35 +1762,75 @@ defineExpose({
   border-bottom-color: var(--primary-color);
 }
 
+/* 表格样式优化 */
 .ai-message-content table {
   border-collapse: collapse;
   width: 100%;
-  margin: 1em 0;
+  margin: 1.8em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .ai-message-content th,
 .ai-message-content td {
   border: 1px solid var(--border-color);
-  padding: 8px 12px;
+  padding: 12px 16px;
   text-align: left;
 }
 
 .ai-message-content th {
   background-color: var(--surface-color);
   font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ai-message-content tr:nth-child(even) {
+  background-color: rgba(127, 127, 127, 0.03);
+}
+
+.ai-message-content tr:hover {
+  background-color: rgba(127, 127, 127, 0.06);
 }
 
 .ai-message-content hr {
   border: none;
-  border-top: 1px solid var(--border-color);
-  margin: 1.5em 0;
+  border-top: 2px solid var(--border-color);
+  margin: 2.5em 0;
+  opacity: 0.6;
 }
 
 .ai-message-content img {
   max-width: 100%;
   height: auto;
   border-radius: 8px;
-  margin: 0.5em 0;
+  margin: 1.2em 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 代码块和段落之间的间距优化 */
+.ai-message-content :deep(.code-block-wrapper) + p,
+.ai-message-content p + :deep(.code-block-wrapper),
+.ai-message-content ul + :deep(.code-block-wrapper),
+.ai-message-content ol + :deep(.code-block-wrapper),
+.ai-message-content :deep(.code-block-wrapper) + ul,
+.ai-message-content :deep(.code-block-wrapper) + ol {
+  margin-top: 1.8em;
+}
+
+/* 代码块前后不需要额外间距（已在wrapper中定义） */
+.ai-message-content pre {
+  margin: 0;
+}
+
+/* 标题后的段落间距 */
+.ai-message-content h1 + p,
+.ai-message-content h2 + p,
+.ai-message-content h3 + p,
+.ai-message-content h4 + p,
+.ai-message-content h5 + p,
+.ai-message-content h6 + p {
+  margin-top: 0.8em;
 }
 
 /* ========== AI推理过程样式（无边框，简单分隔） ========== */
