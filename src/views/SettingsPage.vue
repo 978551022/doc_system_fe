@@ -445,8 +445,6 @@ const removeAvatar = async () => {
 
     if (response.ok) {
       const result = await response.json()
-      console.log('删除头像成功:', result)
-
       // 清空本地状态
       tempAvatarPreview.value = ''
       selectedAvatarFile.value = null
@@ -557,8 +555,6 @@ const saveUserInfo = async () => {
             // 如果是相对路径，也直接使用（通过Vite代理访问）
             avatarUrl = extractedUrl
           }
-
-          console.log('头像上传成功，最终使用URL:', avatarUrl, '原始响应:', result)
         } else {
           console.error('头像上传失败:', response.status, response.statusText)
           if (response.status === 401) {
@@ -596,7 +592,6 @@ const saveUserInfo = async () => {
         }
         avatarCache[userState.userId] = avatarUrl
         localStorage.setItem('user_avatar_cache', JSON.stringify(avatarCache))
-        console.log('头像已保存到缓存:', { userId: userState.userId, avatarUrl })
       } catch (e) {
         console.error('保存头像缓存失败:', e)
       }
@@ -607,8 +602,6 @@ const saveUserInfo = async () => {
     tempAvatarPreview.value = ''
 
     ElMessage.success('个人资料保存成功！')
-
-    console.log('已同步更新全局用户状态:', userState)
   } catch (error) {
     console.error('保存个人资料失败:', error)
     ElMessage.error('保存失败，请重试')
@@ -654,7 +647,6 @@ const changePassword = () => {
   passwordFormRef.value.validate((valid) => {
     if (valid) {
       // 模拟修改密码
-      console.log('修改密码:', passwordForm)
       changePasswordDialogVisible.value = false
       // 清空表单
       passwordForm.oldPassword = ''
@@ -670,10 +662,7 @@ const saveSettings = () => {
   // 保存主题和字体大小到localStorage
   localStorage.setItem('appTheme', settings.theme)
   localStorage.setItem('appFontSize', settings.fontSize.toString())
-  
-  // 模拟保存其他设置
-  console.log('保存设置:', settings)
-  
+
   // 由于添加了localStorage监听器，设置会实时生效，不需要重新加载页面
   ElMessage.success('设置保存成功!')
 }

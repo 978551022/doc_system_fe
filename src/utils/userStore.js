@@ -163,8 +163,6 @@ export const syncUserProfileFromServer = async () => {
         }
       }
 
-      console.log('同步用户头像，后端返回:', response.avatar, '处理后的URL:', avatarUrl)
-
       const userInfo = {
         userId: response.user_id,
         username: response.username || userState.username,
@@ -178,7 +176,6 @@ export const syncUserProfileFromServer = async () => {
         createdAt: response.created_at || ''
       }
       Object.assign(userState, userInfo)
-      console.log('从服务器同步用户信息成功:', userInfo)
     }
   } catch (error) {
     console.error('从服务器同步用户信息失败:', error)

@@ -49,16 +49,10 @@ const isChatPage = computed(() => {
 
 // 处理发送消息事件
 const handleSendMessage = (data) => {
-  console.log('MainContainer收到发送消息事件:', data)
-  
   try {
     if (chatPageRef.value) {
-      console.log('chatPageRef.value:', chatPageRef.value)
-      console.log('组件是否有sendMessage方法:', typeof chatPageRef.value.sendMessage === 'function')
-      
       // 直接调用ChatPage组件的sendMessage方法
       chatPageRef.value.sendMessage(data)
-      console.log('成功调用ChatPage的sendMessage方法')
     } else {
       console.error('chatPageRef.value为空，无法获取ChatPage组件实例')
     }
@@ -69,12 +63,9 @@ const handleSendMessage = (data) => {
 
 // 处理上传文件事件
 const handleUploadFile = (file) => {
-  console.log('MainContainer收到上传文件事件:', file)
-  
   try {
     if (chatPageRef.value && typeof chatPageRef.value.handleUploadFile === 'function') {
       chatPageRef.value.handleUploadFile(file)
-      console.log('成功调用ChatPage的handleUploadFile方法')
     } else {
       console.error('无法获取ChatPage组件实例或handleUploadFile方法')
     }
@@ -85,12 +76,9 @@ const handleUploadFile = (file) => {
 
 // 处理模型切换事件
 const handleModelChange = (modelId) => {
-  console.log('MainContainer收到模型切换事件:', modelId)
-  
   try {
     if (chatPageRef.value && typeof chatPageRef.value.setSelectedModel === 'function') {
       chatPageRef.value.setSelectedModel(modelId)
-      console.log('成功调用ChatPage的setSelectedModel方法')
     } else {
       console.error('无法获取ChatPage组件实例或setSelectedModel方法')
     }
@@ -101,26 +89,21 @@ const handleModelChange = (modelId) => {
 
 // 处理新建聊天事件
 const handleNewChat = () => {
-  console.log('MainContainer收到新建聊天事件')
-  
   try {
     if (isChatPage.value) {
       // 如果当前在聊天页面，直接创建新对话
       if (chatPageRef.value && typeof chatPageRef.value.createNewSession === 'function') {
         chatPageRef.value.createNewSession()
-        console.log('成功调用ChatPage的createNewSession方法')
       } else {
         console.error('无法获取ChatPage组件实例或createNewSession方法')
       }
     } else {
       // 如果当前不在聊天页面，先跳转到聊天页面
       router.push('/chat')
-      console.log('已跳转到聊天页面')
       // 由于路由跳转是异步的，我们需要等待下一个tick再调用createNewSession
       nextTick(() => {
         if (chatPageRef.value && typeof chatPageRef.value.createNewSession === 'function') {
           chatPageRef.value.createNewSession()
-          console.log('成功调用ChatPage的createNewSession方法')
         } else {
           console.error('无法获取ChatPage组件实例或createNewSession方法')
         }
@@ -133,13 +116,10 @@ const handleNewChat = () => {
 
 // 从 ChatInput 或 History 弹窗加载指定会话
 const handleLoadHistory = (sessionId) => {
-  console.log('MainContainer 收到加载历史会话事件:', sessionId)
-
   try {
     const goAndSwitch = () => {
       if (chatPageRef.value && typeof chatPageRef.value.switchSession === 'function') {
         chatPageRef.value.switchSession(sessionId)
-        console.log('已切换到会话:', sessionId)
       } else {
         console.error('无法获取ChatPage组件实例或switchSession方法')
       }
@@ -158,12 +138,9 @@ const handleLoadHistory = (sessionId) => {
 
 // 从 ChatInput 删除指定会话
 const handleDeleteHistory = (sessionId) => {
-  console.log('MainContainer 收到删除历史会话事件:', sessionId)
-
   try {
     if (chatPageRef.value && typeof chatPageRef.value.deleteSession === 'function') {
       chatPageRef.value.deleteSession(sessionId)
-      console.log('已删除会话:', sessionId)
     } else {
       console.error('无法获取ChatPage组件实例或deleteSession方法')
     }

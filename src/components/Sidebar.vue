@@ -143,7 +143,6 @@ const isCollapsed = ref(false)
 
 // 头像加载失败处理
 const handleAvatarError = (e) => {
-  console.log('头像加载失败，使用默认显示')
   return false
 }
 
@@ -172,7 +171,7 @@ const handleUserCommand = async (command) => {
       router.push('/settings')
       break
     case 'contact':
-      console.log('联系我们')
+      // 联系我们
       break
     case 'logout':
       // 立即退出，不等待API响应

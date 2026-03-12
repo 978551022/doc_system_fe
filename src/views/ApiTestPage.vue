@@ -214,13 +214,9 @@ const extractApisFromOpenAPI = (openapiData, baseUrl) => {
   const components = openapiData.components || {}
   const schemas = components.schemas || {}
   const securitySchemes = components.securitySchemes || {}
-  
-  console.log('处理OpenAPI文档，路径数量:', Object.keys(paths).length)
-  
+
   // 遍历所有路径
   for (const [path, pathItem] of Object.entries(paths)) {
-    console.log('处理路径:', path)
-    
     // 遍历路径下的所有方法
     for (const [method, operation] of Object.entries(pathItem)) {
       if (typeof operation === 'object') {
@@ -288,14 +284,12 @@ const extractApisFromOpenAPI = (openapiData, baseUrl) => {
           parameters: parameters,
           baseUrl: baseUrl
         }
-        
-        console.log('提取API:', api)
+
         apis.push(api)
       }
     }
   }
-  
-  console.log('最终提取的API数量:', apis.length)
+
   return apis
 }
 
@@ -453,9 +447,7 @@ const sendRequest = async () => {
         timeout: 10000
       }
     }
-    
-    console.log('发送API请求:', config)
-    
+
     const res = await axios(config)
     const endTime = Date.now()
     
@@ -501,14 +493,12 @@ const resetRequest = () => {
 const handleFileChange = (paramName, uploadFile) => {
   if (uploadFile && uploadFile.raw) {
     fileParams[paramName] = uploadFile.raw
-    console.log('文件已选择:', paramName, uploadFile.raw.name)
   }
 }
 
 // 处理文件移除
 const handleFileRemove = (paramName) => {
   delete fileParams[paramName]
-  console.log('文件已移除:', paramName)
 }
 
 // 格式化响应数据

@@ -56,8 +56,6 @@ export const intelligentQuery = async ({
     requestBody.user_id = user_id
   }
 
-  console.log('[智能查询] 发送请求:', requestBody)
-
   try {
     const token = getToken()
     const response = await fetch(`/api/${INTELLIGENT_SEARCH_BASE_URL}/query`, {
@@ -115,7 +113,6 @@ export const intelligentQuery = async ({
 
           case 'done':
             // 完成标记
-            console.log('[智能查询] 服务器标记完成')
             if (onComplete) {
               onComplete()
             }
@@ -138,7 +135,6 @@ export const intelligentQuery = async ({
       const { value, done } = await reader.read()
 
       if (done) {
-        console.log('[智能查询] 流式响应完成')
         // 处理剩余数据
         if (buffer.trim()) {
           const remainingEvents = buffer.split(/data:\s*/g).filter(s => s.trim())

@@ -62,7 +62,6 @@ const router = useRouter()
 
 // 头像加载失败处理
 const handleAvatarError = (e) => {
-  console.log('头像加载失败，使用默认显示')
   // 返回 false 告诉 el-avatar 使用默认的 slot 内容
   return false
 }

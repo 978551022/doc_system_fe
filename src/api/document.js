@@ -52,10 +52,6 @@ export const uploadDocument = async (file) => {
       }
     })
 
-    console.log('uploadDocument 原始响应:', response)
-    console.log('响应类型:', typeof response)
-    console.log('响应结构:', JSON.stringify(response, null, 2))
-
     return response
   } catch (error) {
     console.error('uploadDocument 错误:', error)
@@ -77,23 +73,14 @@ export const checkDocumentStatus = async (docId) => {
 export const waitForDocumentProcessing = async (docId, maxWaitTime = 30000, checkInterval = 1000) => {
   const startTime = Date.now()
 
-  console.log('开始等待文档处理完成:', { docId, maxWaitTime, checkInterval })
-
   while (Date.now() - startTime < maxWaitTime) {
     try {
       const docInfo = await checkDocumentStatus(docId)
-      console.log('文档状态检查:', {
-        docId,
-        processingStatus: docInfo.processing_status,
-        status: docInfo.processing_status === 0 ? '处理中' : '已完成'
-      })
 
       if (docInfo.processing_status && docInfo.processing_status !== 0) {
-        console.log('文档处理完成:', docInfo)
         return docInfo
       }
 
-      console.log(`文档处理中，${checkInterval / 1000}秒后重试...`)
       await new Promise(resolve => setTimeout(resolve, checkInterval))
     } catch (error) {
       console.error('检查文档状态失败:', error)
@@ -112,14 +99,6 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
 
   const url = `/api/v1/documents/${docId}/query-stream?${params.toString()}`
 
-  console.log('开始流式查询:', {
-    url,
-    docId,
-    query,
-    onlineSearch,
-    fullUrl: window.location.origin + url
-  })
-
   try {
     const response = await fetch(url, {
       method: 'GET',
@@ -128,8 +107,6 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
         'Authorization': `Bearer ${getToken()}`
       }
     })
-
-    console.log('流式查询响应状态:', response.status, response.statusText)
 
     if (!response.ok) {
       let errorText = ''
@@ -152,8 +129,6 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
       const { value, done } = await reader.read()
 
       if (done) {
-        console.log('流式查询完成，共接收', chunkCount, '个chunk')
-        console.log('最终提取的文本内容:', textContent.substring(0, 200))
         break
       }
 
@@ -169,7 +144,6 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
         }
 
         chunkCount++
-        console.log('接收到chunk #' + chunkCount + ':', trimmedLine.substring(0, 100))
 
         if (trimmedLine.startsWith('data:')) {
           let content = trimmedLine.substring(5).trim()
@@ -179,7 +153,6 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
           }
 
           if (content === '[DONE]' || content.includes('[DONE]')) {
-            console.log('收到结束标记')
             continue
           }
 
@@ -192,7 +165,6 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
           }
 
           if (extractedText && extractedText.length > 0) {
-            console.log('提取的文本:', extractedText)
             textContent += extractedText
 
             if (onChunk) {
@@ -204,7 +176,6 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
     }
 
     if (buffer.trim()) {
-      console.log('处理剩余buffer:', buffer.trim())
       let trimmedLine = buffer.trim()
       if (trimmedLine.startsWith('data:')) {
         let content = trimmedLine.substring(5).trim()
@@ -223,8 +194,6 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
         }
       }
     }
-
-    console.log('流式查询处理完成，总文本长度:', textContent.length)
   } catch (error) {
     console.error('流式查询失败:', error)
     console.error('错误详情:', {
@@ -236,7 +205,7 @@ export const queryDocumentStream = async (docId, query, onChunk, onlineSearch = 
 }
 
 export const cancelQueryStream = () => {
-  console.log('取消流式查询')
+  // 取消流式查询
 }
 
 export default request

@@ -2,8 +2,10 @@
   <div class="chat-page" ref="chatComponent">
     <!-- 聊天消息列表 -->
     <div class="chat-messages" ref="messagesContainer">
-      <!-- 对话消息 -->
-      <div
+      <!-- 内容包装器 - 控制最大宽度 -->
+      <div class="chat-messages-content">
+        <!-- 对话消息 -->
+        <div
         v-for="message in messages"
         :key="message.id"
         :class="['chat-message', `chat-message--${message.role}`]"
@@ -40,21 +42,19 @@
           <template v-if="message.role === 'assistant'">
             <!-- 深度推理过程区域 -->
             <div
-              v-if="message.reasoningContent"
+              v-if="message.reasoningContent || message.isReasoning"
               class="ai-reasoning-section"
             >
-              <div class="ai-reasoning-header" @click="toggleReasoning(message)">
-                <i :class="message.reasoningExpanded ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
-                <span>深度推理过程</span>
-                <span class="reasoning-status" :class="{ 'completed': message.reasoningCompleted }">
-                  {{ message.reasoningCompleted ? '已完成' : '思考中...' }}
+              <div class="ai-reasoning-header" @click="message.reasoningContent && toggleReasoning(message)">
+                <i v-if="message.reasoningContent" :class="message.reasoningExpanded ? 'el-icon-arrow-down' : 'el-icon-arrow-right'"></i>
+                <span class="reasoning-title">
+                  {{ message.reasoningCompleted ? '已思考' : '思考中...' }}{{ message.reasoningDuration ? ` (${message.reasoningDuration})` : '' }}
                 </span>
               </div>
-              <div v-show="message.reasoningExpanded" class="ai-reasoning-content">
-                <pre>{{ message.reasoningContent }}</pre>
+              <div v-if="message.reasoningHtml" v-show="message.reasoningExpanded" class="ai-reasoning-content" v-html="message.reasoningHtml">
               </div>
               <!-- 分隔线 -->
-              <div v-if="message.reasoningExpanded || message.reasoningCompleted" class="ai-divider"></div>
+              <div v-if="(message.reasoningHtml && (message.reasoningExpanded || message.reasoningCompleted)) || message.isReasoning" class="ai-divider"></div>
             </div>
 
             <!-- 消息内容：支持Markdown实时渲染 -->
@@ -134,6 +134,8 @@
             <span>正在输入...</span>
           </div>
         </div>
+      </div>
+      <!-- 内容包装器结束 -->
       </div>
     </div>
   </div>
@@ -272,22 +274,6 @@ marked.setOptions({
   renderer: renderer
 })
 
-// 测试marked是否正常工作
-console.log('[marked配置测试] marked版本:', marked.version)
-console.log('[marked配置测试] marked.parse函数类型:', typeof marked.parse)
-
-// 简单测试 - 解析一段markdown
-const testMarkdown = '# 测试标题\n\n```python\nprint("Hello")\n```\n\n这是**测试**段落。'
-console.log('[marked配置测试] 测试markdown:', testMarkdown)
-try {
-  const testResult = marked.parse(testMarkdown)
-  console.log('[marked配置测试] 测试解析成功')
-  console.log('[marked配置测试] 解析结果类型:', typeof testResult)
-  console.log('[marked配置测试] 解析结果:', testResult)
-} catch (e) {
-  console.error('[marked配置测试] 测试解析失败:', e)
-}
-
 // 路由对象，用于接收 HistoryPage 传入的会话 ID
 const route = useRoute()
 
@@ -351,7 +337,6 @@ const isSending = ref(false)
 
 // 发送消息方法（用于接收来自ChatInput的消息）
 const sendMessage = async (data) => {
-  console.log('ChatPage收到消息:', data)
   const { content, files, onlineSearch, deepReasoning } = data
 
   // 允许只有文件上传而没有文本内容
@@ -385,11 +370,8 @@ const sendMessage = async (data) => {
     // 上传每个文件到后端
     for (const file of files) {
       try {
-        console.log('正在上传文件:', file.name)
-
         // 调用后端API上传文件
         const response = await uploadDocument(file)
-        console.log('文件上传响应:', response)
 
         // 多种可能的响应格式处理
         let docId = null
@@ -420,18 +402,13 @@ const sendMessage = async (data) => {
           }
         }
 
-        console.log('提取到的文档ID:', docId)
-
         if (docId) {
           uploadedDocIds.push(docId)
           uploadedFileNames.push(file.name)
 
           // 等待文档处理完成（静默处理，不显示单独提示）
-          console.log('等待文档处理完成...')
-
           try {
             const processedDoc = await waitForDocumentProcessing(docId, 30000, 1000)
-            console.log('文档处理完成:', processedDoc)
             successCount++
           } catch (waitError) {
             console.error('等待文档处理超时:', waitError)
@@ -467,7 +444,6 @@ const sendMessage = async (data) => {
         sessionRef.documentIds = []
       }
       sessionRef.documentIds.push(...uploadedDocIds)
-      console.log('已存储文档ID到会话:', sessionRef.documentIds)
     }
   }
 
@@ -483,10 +459,10 @@ const sendMessage = async (data) => {
 
   // 记录功能开启状态用于后端调用，但不在消息中显示
   if (onlineSearch) {
-    console.log('联网搜索已开启')
+    // 联网搜索已开启
   }
   if (deepReasoning) {
-    console.log('深度推理已开启')
+    // 深度推理已开启
   }
 
   // 创建用户消息（确保内容去除多余空格）
@@ -517,7 +493,6 @@ const sendMessage = async (data) => {
     
     if (hasDocuments && content.trim()) {
       // ========== 文档查询模式 ==========
-      console.log('使用文档查询模式，文档ID:', effectiveDocIds)
 
       // 使用reactive创建助手消息对象
       const assistantMessage = reactive({
@@ -536,8 +511,6 @@ const sendMessage = async (data) => {
 
       // 调用流式查询API，传递联网搜索参数
       await queryDocumentStream(docId, query, (extractedText) => {
-        console.log('收到已提取的文本:', extractedText)
-
         // 当收到第一个chunk时，隐藏加载状态
         if (isTyping.value) {
           isTyping.value = false
@@ -549,8 +522,6 @@ const sendMessage = async (data) => {
           scrollToBottom(false)
         }
       }, onlineSearch)
-
-      console.log('文档查询完成')
 
     } else if (uploadedDocIds.length > 0 && !content.trim()) {
       // ========== 只有文件上传，没有查询 ==========
@@ -564,12 +535,14 @@ const sendMessage = async (data) => {
 
     } else {
       // ========== 使用后端统一智能查询接口 ==========
-      console.log('使用后端智能查询接口')
 
       // 获取或创建后端会话ID
       if (!sessionRef.backendConversationId) {
         sessionRef.backendConversationId = null
       }
+
+      // 记录推理开始时间
+      const reasoningStartTime = Date.now()
 
       // 使用reactive创建助手消息对象
       const assistantMessage = reactive({
@@ -581,6 +554,9 @@ const sendMessage = async (data) => {
         reasoningRawContent: '', // 推理过程原始内容
         reasoningExpanded: true, // 默认展开
         reasoningCompleted: false,
+        isReasoning: !!deepReasoning, // 是否在推理中
+        reasoningStartTime: reasoningStartTime,
+        reasoningDuration: null, // 推理耗时
         isComplete: false, // 标记是否渲染完成
         tokens: null,
         time: new Date().toLocaleTimeString()
@@ -590,6 +566,7 @@ const sendMessage = async (data) => {
       let rawContent = ''
       let reasoningBuffer = ''
       let isInReasoning = false
+      let firstChunkReceived = false
 
       // 立即添加到消息列表
       sessionRef.messages.push(assistantMessage)
@@ -621,13 +598,13 @@ const sendMessage = async (data) => {
           if (chunkContent) {
             // 逐字累加内容
             rawContent += chunkContent
-            parseContentAndReasoning(assistantMessage, rawContent)
+            // 传递推理开始时间，用于计算耗时
+            parseContentAndReasoning(assistantMessage, rawContent, deepReasoning ? reasoningStartTime : null)
             scrollToBottom(false)
           }
         },
         // onMetadata - 接收元数据
         (metadata) => {
-          console.log('[智能查询] 元数据:', metadata)
           if (metadata.conversation_id) {
             sessionRef.backendConversationId = metadata.conversation_id
           }
@@ -648,7 +625,6 @@ const sendMessage = async (data) => {
         },
         // onComplete - 渲染完成
         () => {
-          console.log('[智能查询] 渲染完成，开始解析Markdown')
           assistantMessage.isComplete = true
           parseMarkdown(assistantMessage)
         }
@@ -716,18 +692,11 @@ const sendMessage = async (data) => {
 
 // 处理上传文件方法
 const handleUploadFile = (file) => {
-  console.log('文件上传成功:', file)
   ElMessage.success(`文件 ${file.name} 上传成功!`)
 }
 
 // 解析内容和推理过程，分离显示（流式渲染时调用）
-const parseContentAndReasoning = (message, rawContent) => {
-  // 调试计数器
-  if (!message._debugLogCount) {
-    message._debugLogCount = 0
-  }
-  message._debugLogCount++
-
+const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null) => {
   // 保存原始内容 - 确保是字符串类型
   const rawContentStr = String(rawContent || '')
   message.rawContent = rawContentStr
@@ -761,6 +730,7 @@ const parseContentAndReasoning = (message, rawContent) => {
   const answerEndTag = '</最终答案>'
 
   let reasoningText = ''
+  let wasReasoningCompleted = false
 
   if (cleanContent.includes(reasoningStartTag)) {
     const reasoningStart = cleanContent.indexOf(reasoningStartTag)
@@ -771,6 +741,16 @@ const parseContentAndReasoning = (message, rawContent) => {
       message.reasoningRawContent = reasoningText
       cleanContent = cleanContent.substring(0, reasoningStart) + cleanContent.substring(reasoningEnd + reasoningEndTag.length)
       message.reasoningCompleted = true
+      wasReasoningCompleted = true
+
+      // 计算推理耗时（从请求开始到推理完成）
+      if (reasoningStartTime && !message.reasoningDuration) {
+        const reasoningEndTime = Date.now()
+        const reasoningElapsed = reasoningEndTime - reasoningStartTime
+        message.reasoningDuration = `${(reasoningElapsed / 1000).toFixed(1)}秒`
+      }
+      // 推理完成，停止"思考中"状态
+      message.isReasoning = false
     } else {
       message.reasoningRawContent = cleanContent.substring(reasoningStart + reasoningStartTag.length)
       cleanContent = cleanContent.substring(0, reasoningStart)
@@ -789,8 +769,21 @@ const parseContentAndReasoning = (message, rawContent) => {
     }
   }
 
-  // 保存推理过程内容
-  message.reasoningContent = reasoningText || message.reasoningRawContent || ''
+  // 保存推理过程内容并转换为HTML
+  const reasoningRawText = reasoningText || message.reasoningRawContent || ''
+  message.reasoningContent = reasoningRawText
+
+  // 将推理内容转换为HTML渲染
+  if (reasoningRawText) {
+    try {
+      message.reasoningHtml = marked.parse(reasoningRawText)
+    } catch (e) {
+      console.error('[推理内容] Markdown解析失败:', e)
+      message.reasoningHtml = reasoningRawText
+    }
+  } else {
+    message.reasoningHtml = ''
+  }
 
   // 准备解析的内容
   let contentToParse = cleanContent.trim()
@@ -801,33 +794,13 @@ const parseContentAndReasoning = (message, rawContent) => {
     contentToParse += '\n```'
   }
 
-  // 调试日志（仅前3次和每50次）
-  const shouldLog = message._debugLogCount <= 3 || message._debugLogCount % 50 === 0
-  if (shouldLog) {
-    console.log(`=== [流式解析 #${message._debugLogCount}] ===`)
-    console.log('1. 原始类型:', typeof rawContent)
-    console.log('2. 清理后类型:', typeof contentToParse)
-    console.log('3. 清理后长度:', contentToParse.length)
-    console.log('4. 清理后内容(前100字符):', contentToParse.substring(0, 100))
-    console.log('5. marked.parse类型:', typeof marked.parse)
-  }
-
   // 解析Markdown
   try {
-    console.log('[流式解析] 开始调用 marked.parse()...')
     const htmlContent = marked.parse(contentToParse)
-    console.log('[流式解析] marked.parse() 成功返回, 类型:', typeof htmlContent, '长度:', htmlContent.length)
-
-    if (shouldLog) {
-      console.log('6. HTML输出(前200字符):', htmlContent.substring(0, 200))
-    }
-
     // 直接设置HTML内容
     message.content = htmlContent
-    console.log('[流式解析] message.content 已设置为HTML')
   } catch (e) {
     console.error('[流式解析] Markdown解析失败:', e)
-    console.error('[流式解析] 错误堆栈:', e.stack)
     // 解析失败时的备用方案
     message.content = contentToParse
   }
@@ -884,13 +857,9 @@ const parseMarkdown = (message) => {
     // 清理多余空格和空行
     finalAnswer = finalAnswer.trim().replace(/\n\s*\n\s*\n/g, '\n\n')
 
-    // 解析Markdown - renderer已经在marked.setOptions中配置，不需要传递
+    // 解析Markdown
     try {
-      console.log('[Markdown解析] 原始内容:', finalAnswer.substring(0, 100) + '...')
       const htmlResult = marked.parse(finalAnswer)
-      console.log('[Markdown解析] 渲染结果长度:', htmlResult.length)
-      // 打印前200个字符查看格式
-      console.log('[Markdown解析] 渲染结果预览:', htmlResult.substring(0, 200) + '...')
       message.content = htmlResult
     } catch (e) {
       console.error('Markdown解析失败:', e)
@@ -975,27 +944,20 @@ const deleteMessage = (messageId) => {
   }
 }
 
-// 滚动到底部（优化版，减少抖动）
+// 滚动到底部（智能版：如果用户在底部附近则自动滚动，否则不打扰用户）
 const scrollToBottom = (smooth = true) => {
   nextTick(() => {
     const container = messagesContainer.value
     if (container) {
-      // 检查用户是否正在查看历史消息（距离底部超过100px）
-      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100
+      // 检测用户当前是否在底部附近（100px以内）
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+      const isUserNearBottom = distanceFromBottom < 100
 
-      // 只有当用户接近底部时才自动滚动
-      if (isNearBottom || !smooth) {
+      // 只有当用户在底部附近时才自动滚动
+      // 如果用户向上滚动查看内容，不要强制拉回底部
+      if (isUserNearBottom) {
         const targetScrollTop = container.scrollHeight
-
-        // 流式输出时使用即时滚动，避免抖动
-        if (smooth) {
-          container.scrollTo({
-            top: targetScrollTop,
-            behavior: 'auto' // 改为auto，避免smooth动画与内容更新冲突
-          })
-        } else {
-          container.scrollTop = targetScrollTop
-        }
+        container.scrollTop = targetScrollTop
       }
     }
   })
@@ -1003,7 +965,6 @@ const scrollToBottom = (smooth = true) => {
 
 // 设置选中的模型
 const setSelectedModel = (modelId) => {
-  console.log('ChatPage收到模型切换事件:', modelId)
   if (modelConfig.value[modelId]) {
     selectedModel.value = modelId
     ElMessage.success(`已切换到模型：${modelConfig.value[modelId].name}`)
@@ -1171,7 +1132,7 @@ onMounted(() => {
       }
     }
   })
-  
+
   // 监听路由参数变化，支持在聊天页内通过修改 query 切换会话
   watch(
     () => route.query.sessionId,
@@ -1218,15 +1179,20 @@ defineExpose({
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 20px;
-  padding-bottom: 40px;
+  overflow-x: hidden;
   background: transparent;
-  max-width: 900px;
-  margin: 0 auto;
   width: 100%;
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
   min-height: 0;
+}
+
+/* 内容包装器 - 控制最大宽度并居中 */
+.chat-messages-content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  padding-bottom: 40px;
 }
 
 .chat-message {
@@ -1361,6 +1327,10 @@ defineExpose({
 .chat-message__content {
   max-width: 70%;
   min-width: 100px;
+}
+
+.chat-message--assistant .chat-message__content {
+  max-width: 85%;
 }
 
 .chat-message--user .chat-message__content {
@@ -1605,7 +1575,7 @@ defineExpose({
 .ai-message-content pre :deep(code.hljs) {
   background-color: transparent !important;
   padding: 18px 20px;
-  font-size: 0.94em;
+  font-size: 0.85em;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   display: block;
   color: #abb2bf;
@@ -1846,7 +1816,6 @@ defineExpose({
   cursor: pointer;
   user-select: none;
   color: var(--text-secondary);
-  font-size: 13px;
   transition: var(--transition-fast);
 }
 
@@ -1859,31 +1828,15 @@ defineExpose({
   transition: var(--transition-fast);
 }
 
-.ai-reasoning-header span:first-of-type {
-  font-weight: 500;
+/* 思考中/已思考标题样式 - 使用系统主题色 */
+.reasoning-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #4f46e5;
 }
 
-.ai-reasoning-status {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  background-color: rgba(245, 158, 11, 0.15);
-  color: var(--warning-color);
-  font-weight: 500;
-  transition: var(--transition);
-}
-
-.dark-theme .ai-reasoning-status {
-  background-color: rgba(251, 191, 36, 0.2);
-}
-
-.ai-reasoning-status.completed {
-  background-color: rgba(16, 185, 129, 0.15);
-  color: var(--success-color);
-}
-
-.dark-theme .ai-reasoning-status.completed {
-  background-color: rgba(52, 211, 153, 0.2);
+.dark-theme .reasoning-title {
+  color: #60a5fa;
 }
 
 .ai-reasoning-content {
@@ -1893,13 +1846,39 @@ defineExpose({
   line-height: 1.7;
 }
 
-.ai-reasoning-content pre {
-  margin: 0;
+/* 推理内容Markdown样式 */
+.ai-reasoning-content :deep(p) {
+  margin: 0.5em 0;
+}
+
+.ai-reasoning-content :deep(ul),
+.ai-reasoning-content :deep(ol) {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.ai-reasoning-content :deep(li) {
+  margin: 0.3em 0;
+}
+
+.ai-reasoning-content :deep(code) {
+  background-color: rgba(127, 127, 127, 0.1);
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.ai-reasoning-content :deep(pre) {
+  margin: 0.5em 0;
   white-space: pre-wrap;
   word-wrap: break-word;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.6;
+  background-color: rgba(127, 127, 127, 0.05);
+  padding: 10px;
+  border-radius: 6px;
 }
 
 .ai-divider {
