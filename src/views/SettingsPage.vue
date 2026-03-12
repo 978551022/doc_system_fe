@@ -22,14 +22,17 @@
                   :auto-upload="false"
                   accept="image/*"
                 >
-                  <el-avatar :size="100" :src="userInfo.avatar" class="avatar-preview">
-                    <i v-if="!userInfo.avatar" class="el-icon-plus avatar-uploader-icon"></i>
+                  <el-avatar :size="100" :src="displayAvatar" class="avatar-preview">
+                    <i v-if="!displayAvatar" class="el-icon-plus avatar-uploader-icon"></i>
                   </el-avatar>
                 </el-upload>
-                <div class="avatar-tip">支持 JPG、PNG 格式，大小不超过 2MB</div>
-                <div class="avatar-actions" v-if="userInfo.avatar">
-                  <el-button size="small" type="danger" @click="removeAvatar">
-                    <i class="el-icon-delete"></i> 移除头像
+                <div class="avatar-tip">支持 JPG、PNG 格式，大小不超过 10MB</div>
+                <div class="avatar-actions">
+                  <el-button v-if="tempAvatarPreview" size="small" @click="removeAvatarLocal">
+                    <i class="el-icon-close"></i> 取消选择
+                  </el-button>
+                  <el-button v-if="displayAvatar && !tempAvatarPreview" size="small" type="danger" @click="removeAvatar">
+                    <i class="el-icon-delete"></i> 删除头像
                   </el-button>
                 </div>
               </div>
@@ -281,8 +284,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ref, reactive, watch, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import userState, { updateUserInfo, updateUserAvatar, isLoggedIn } from '../utils/userStore.js'
 
 
@@ -353,58 +356,135 @@ watch(
 
 // 存储当前选择的文件（用于保存时上传）
 const selectedAvatarFile = ref(null)
+// 临时预览URL，仅用于组件内显示，不同步到全局状态
+const tempAvatarPreview = ref('')
 
 // 头像上传URL（通过Vite代理到后端 /api/v1/docsearch/user/me/avatar）
 // 后端 user_router 前缀为 /user，整体挂载在 /api/v1/docsearch 下
 const uploadUrl = '/api/v1/docsearch/user/me/avatar'
+// 删除头像URL
+const deleteAvatarUrl = '/api/v1/docsearch/user/me/delete/avatar'
 
 // 处理头像文件选择（本地预览 + 本地持久化，上传成功后再用后端URL覆盖）
 const handleAvatarChange = (uploadFile) => {
   if (uploadFile && uploadFile.raw) {
     // 验证文件
     const isImage = uploadFile.raw.type.startsWith('image/')
-    const isLt2M = uploadFile.raw.size / 1024 / 1024 < 2
-    
+    const isLt10M = uploadFile.raw.size / 1024 / 1024 < 10
+
     if (!isImage) {
       ElMessage.error('只支持图片格式!')
-      return false
+      return
     }
-    if (!isLt2M) {
-      ElMessage.error('头像大小不能超过 2MB!')
-      return false
+    if (!isLt10M) {
+      ElMessage.error('头像大小不能超过 10MB!')
+      return
     }
-    
+
     // 存储文件，等待保存时上传到后端
     selectedAvatarFile.value = uploadFile.raw
-    
-    // 使用 dataURL 预览，并同步到全局状态和 localStorage（在未登录情况下也能本地显示头像）
+
+    // 使用临时预览URL，仅用于组件内显示，不同步到localStorage
+    // 这样可以避免大base64字符串阻塞localStorage
     const reader = new FileReader()
     reader.onload = () => {
       const result = reader.result
       if (typeof result === 'string') {
-        userInfo.avatar = result
-        updateUserInfo({
-          username: userInfo.username,
-          email: userInfo.email,
-          phone: userInfo.phone,
-          avatar: result
-        })
-        ElMessage.success('头像已选择，本地已生效，保存后将尝试同步到服务器')
+        tempAvatarPreview.value = result
+        ElMessage.success('头像已选择，点击"保存个人资料"后上传到服务器')
       }
     }
     reader.onerror = () => {
       console.error('读取头像文件失败')
       ElMessage.error('读取头像文件失败，请重试')
+      tempAvatarPreview.value = ''
     }
     reader.readAsDataURL(uploadFile.raw)
   }
 }
 
-// 移除头像
-const removeAvatar = () => {
-  userInfo.avatar = ''
+// 显示的头像URL：优先使用临时预览，否则使用用户头像
+const displayAvatar = computed(() => {
+  return tempAvatarPreview.value || userState.avatar
+})
+
+// 移除头像（仅本地移除，不调用后端）
+const removeAvatarLocal = () => {
+  tempAvatarPreview.value = ''
   selectedAvatarFile.value = null
-  ElMessage.info('头像已移除')
+  ElMessage.info('头像已移除，点击"保存个人资料"后生效')
+}
+
+// 删除头像（调用后端API）
+const removeAvatar = async () => {
+  try {
+    // 检查登录状态
+    if (!isLoggedIn()) {
+      ElMessage.warning('请先登录')
+      return
+    }
+
+    // 确认删除
+    await ElMessageBox.confirm(
+      '确定要删除头像吗？删除后无法恢复。',
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+
+    const response = await fetch(deleteAvatarUrl, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${userState.token}`
+      }
+    })
+
+    if (response.ok) {
+      const result = await response.json()
+      console.log('删除头像成功:', result)
+
+      // 清空本地状态
+      tempAvatarPreview.value = ''
+      selectedAvatarFile.value = null
+      userInfo.avatar = ''
+      updateUserInfo({
+        username: userInfo.username,
+        email: userInfo.email,
+        phone: userInfo.phone,
+        avatar: ''
+      })
+
+      // 清除localStorage中的头像缓存
+      if (userState.userId) {
+        try {
+          let avatarCache = {}
+          const saved = localStorage.getItem('user_avatar_cache')
+          if (saved) {
+            avatarCache = JSON.parse(saved)
+          }
+          delete avatarCache[userState.userId]
+          localStorage.setItem('user_avatar_cache', JSON.stringify(avatarCache))
+        } catch (e) {
+          console.error('清除头像缓存失败:', e)
+        }
+      }
+
+      ElMessage.success('头像删除成功！')
+    } else {
+      const errorData = await response.json().catch(() => ({ detail: '删除失败' }))
+      console.error('删除头像失败:', response.status, errorData)
+      ElMessage.error(errorData.detail || '删除头像失败，请稍后重试')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('删除头像异常:', error)
+      ElMessage.error('删除头像异常，请检查网络或后端服务')
+    }
+  }
 }
 
 // 保存个人资料
@@ -522,8 +602,9 @@ const saveUserInfo = async () => {
       }
     }
 
-    // 清空待上传文件
+    // 清空待上传文件和临时预览
     selectedAvatarFile.value = null
+    tempAvatarPreview.value = ''
 
     ElMessage.success('个人资料保存成功！')
 

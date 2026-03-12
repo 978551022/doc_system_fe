@@ -83,7 +83,8 @@ import { ref, computed, onMounted, nextTick, watch, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { uploadDocument, queryDocumentStream, waitForDocumentProcessing } from '../api/document.js'
+import { uploadDocument, waitForDocumentProcessing } from '../api/document.js'
+import { intelligentQuery, getAvailableModels } from '../api/intelligentSearch.js'
 import userState from '../utils/userStore.js'
 
 // 路由对象，用于接收 HistoryPage 传入的会话 ID
@@ -124,52 +125,25 @@ const messagesContainer = ref(null)
 // 组件引用
 const chatComponent = ref(null)
 
-// 模型配置 - 支持多种模型
+// 模型配置 - 通过后端获取，前端只保留显示名称
 const modelConfig = ref({
-  // DeepSeek模型配置
-  deepseek: {
-    name: "DeepSeek",
-    type: "deepseek",
-    model: "deepseek-chat",
-    base_url: "https://api.deepseek.com/",
-    api_key: "sk-f37bb7bb404c42cc967dcbe1f84af90a"
-  },
-  // GLM模型配置
-  glm: {
-    name: "GLM-4.5-Flash",
-    type: "glm",
-    model: "GLM-4.5-Flash",
-    base_url: "https://open.bigmodel.cn/api/coding/paas/v4",
-    api_key: "eb870e0270e3449896a11231fbcadc4e.nAX0cJvBZiLy274g"
-  },
-  // Qwen模型配置
-  qwen: {
-    name: "Qwen 2",
-    type: "qwen",
-    model: "qwen-plus",
-    base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-    api_key: "sk-2d97c4a4a3a04eaf81a296b67632166a"
-  },
-  // Llama 3模型配置
-  llama3: {
-    name: "Llama 3",
-    type: "llama3",
-    model: "meta-llama-3-8b-instruct",
-    base_url: "https://api.openai.com/v1/",
-    api_key: "your-llama3-api-key"
-  }
+  glm: { name: "GLM-4.5-Flash" },
+  deepseek: { name: "DeepSeek" },
+  qwen2: { name: "通义千问Plus" },
+  qwen3: { name: "通义千问VL" },
+  llama3: { name: "Llama 3" }
 })
 
 // 模型列表，用于UI显示
 const models = ref([
-  { id: 'deepseek', name: 'DeepSeek', icon: 'el-icon-chat-dot-round' },
   { id: 'glm', name: 'GLM-4.5-Flash', icon: 'el-icon-chat-dot-round' },
-  { id: 'qwen', name: 'Qwen 2', icon: 'el-icon-chat-dot-round' },
+  { id: 'deepseek', name: 'DeepSeek', icon: 'el-icon-chat-dot-round' },
+  { id: 'qwen2', name: '通义千问Plus', icon: 'el-icon-chat-dot-round' },
   { id: 'llama3', name: 'Llama 3', icon: 'el-icon-chat-dot-round' }
 ])
 
 // 当前选中的模型
-const selectedModel = ref('deepseek')
+const selectedModel = ref('glm')
 
 // 控制是否可以发送新消息的状态
 const isSending = ref(false)
@@ -392,102 +366,12 @@ const sendMessage = async (data) => {
       sessionRef.messages.push(assistantMessage)
 
     } else {
-      // ========== 普通AI对话模式（没有文档） ==========
-      console.log('使用普通AI对话模式')
+      // ========== 使用后端统一智能查询接口 ==========
+      console.log('使用后端智能查询接口')
 
-      // 添加到对话历史
-      sessionRef.conversationHistory.push({
-        role: 'user',
-        content: messageContent
-      })
-
-      // 获取当前模型配置
-      const config = modelConfig.value[selectedModel.value]
-      console.log('当前模型配置:', config)
-
-      let requestUrl, requestBody, headers
-
-      // 根据模型类型处理不同的API请求
-      switch (config.type) {
-        case 'deepseek':
-          requestUrl = `${config.base_url}v1/chat/completions`
-          requestBody = {
-            model: config.model,
-            messages: sessionRef.conversationHistory,
-            temperature: 0.7,
-            max_tokens: 2000,
-            stream: true,
-            online_search: !!onlineSearch,
-            deep_thinking: !!deepReasoning
-          }
-          headers = {
-            'Authorization': `Bearer ${config.api_key}`,
-            'Content-Type': 'application/json'
-          }
-          break
-        case 'glm':
-          requestUrl = `${config.base_url}/chat/completions`
-          requestBody = {
-            model: config.model,
-            messages: sessionRef.conversationHistory,
-            temperature: 0.7,
-            max_tokens: 2000,
-            stream: true,
-            online_search: !!onlineSearch,
-            deep_thinking: !!deepReasoning
-          }
-          headers = {
-            'Authorization': `Bearer ${config.api_key}`,
-            'Content-Type': 'application/json'
-          }
-          break
-        case 'qwen':
-          requestUrl = config.base_url
-          requestBody = {
-            model: config.model,
-            messages: sessionRef.conversationHistory,
-            temperature: 0.7,
-            max_tokens: 2000,
-            stream: true,
-            online_search: !!onlineSearch,
-            deep_thinking: !!deepReasoning
-          }
-          headers = {
-            'Authorization': `Bearer ${config.api_key}`,
-            'Content-Type': 'application/json'
-          }
-          break
-        case 'llama3':
-          requestUrl = `${config.base_url}chat/completions`
-          requestBody = {
-            model: config.model,
-            messages: sessionRef.conversationHistory,
-            temperature: 0.7,
-            max_tokens: 2000,
-            stream: true,
-            online_search: !!onlineSearch,
-            deep_thinking: !!deepReasoning
-          }
-          headers = {
-            'Authorization': `Bearer ${config.api_key}`,
-            'Content-Type': 'application/json'
-          }
-          break
-        default:
-          throw new Error(`不支持的模型类型: ${config.type}`)
-      }
-
-      // 发送API请求
-      console.log('发送API请求到:', requestUrl)
-
-      const response = await fetch(requestUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody)
-      })
-
-      if (!response.ok) {
-        throw new Error(`请求失败，状态码：${response.status}`)
+      // 获取或创建后端会话ID
+      if (!sessionRef.backendConversationId) {
+        sessionRef.backendConversationId = null
       }
 
       // 使用reactive创建助手消息对象
@@ -501,13 +385,61 @@ const sendMessage = async (data) => {
       // 立即添加到消息列表
       sessionRef.messages.push(assistantMessage)
 
-      // 调用streamResponse处理响应
-      await streamResponse(response, assistantMessage, () => {
-        isTyping.value = false
-        scrollToBottom()
-      })
+      // 确定查询模式
+      let queryMode = 'general'
+      if (hasDocuments && effectiveDocIds && effectiveDocIds.length > 0) {
+        queryMode = 'document'
+      }
 
-      // 添加到对话历史
+      // 调用后端智能查询API
+      const result = await intelligentQuery(
+        {
+          query: content.trim(),
+          mode: queryMode,
+          document_id: queryMode === 'document' ? effectiveDocIds[effectiveDocIds.length - 1] : null,
+          conversation_id: sessionRef.backendConversationId,
+          user_id: userState.userId || null,
+          model_name: selectedModel.value,
+          stream: true,
+          online_search: !!onlineSearch,
+          deep_reasoning: !!deepReasoning
+        },
+        // onChunk - 接收内容片段
+        (chunkContent) => {
+          if (isTyping.value) {
+            isTyping.value = false
+          }
+          if (chunkContent && chunkContent.trim()) {
+            assistantMessage.content += chunkContent
+            scrollToBottom(false)
+          }
+        },
+        // onMetadata - 接收元数据
+        (metadata) => {
+          console.log('[智能查询] 元数据:', metadata)
+          if (metadata.conversation_id) {
+            sessionRef.backendConversationId = metadata.conversation_id
+          }
+        },
+        // onError - 接收错误
+        (errorMsg) => {
+          console.error('[智能查询] 错误:', errorMsg)
+          if (errorMsg) {
+            assistantMessage.content += `\n\n[错误] ${errorMsg}`
+          }
+        }
+      )
+
+      // 保存会话ID
+      if (result && result.conversation_id) {
+        sessionRef.backendConversationId = result.conversation_id
+      }
+
+      // 添加到本地对话历史
+      sessionRef.conversationHistory.push({
+        role: 'user',
+        content: messageContent
+      })
       sessionRef.conversationHistory.push({
         role: 'assistant',
         content: assistantMessage.content
@@ -558,172 +490,6 @@ const sendMessage = async (data) => {
   }
 }
 
-// 流式处理响应
-const streamResponse = async (response, assistantMessage, onFirstChunk) => {
-  let receivedChunk = false
-  
-  if (!assistantMessage.content) {
-    assistantMessage.content = ''
-  }
-  
-  // 处理非流式响应
-  if (!response.body || !response.body.getReader) {
-    try {
-      const text = await response.text()
-      assistantMessage.content = parseResponseText(text)
-      if (typeof onFirstChunk === 'function') {
-        onFirstChunk()
-        receivedChunk = true
-      }
-      scrollToBottom()
-    } catch (error) {
-      console.error('处理非流式响应失败:', error)
-      assistantMessage.content = `处理响应失败: ${error.message}`
-      if (typeof onFirstChunk === 'function') {
-        onFirstChunk()
-        receivedChunk = true
-      }
-      scrollToBottom()
-    }
-    return receivedChunk
-  }
-  
-  // 处理流式响应
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder('utf-8')
-  let buffer = ''
-  
-  try {
-    while (true) {
-      const { value, done } = await reader.read()
-      if (done) {
-        console.log('流式响应结束')
-        break
-      }
-      
-      buffer += decoder.decode(value, { stream: true })
-      
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-      
-      for (const rawLine of lines) {
-        const line = rawLine.trim()
-        if (!line) continue
-        
-        if (line === 'data: [DONE]' || line === '[DONE]') {
-          console.log('收到结束标记')
-          continue
-        }
-        
-        let payload = line
-        if (payload.startsWith('data:')) {
-          payload = payload.slice(5).trim()
-        }
-        
-        if (!payload) continue
-        
-        try {
-          const parsed = JSON.parse(payload)
-          let delta = ''
-          
-          if (parsed.choices && parsed.choices[0]) {
-            if (parsed.choices[0].delta) {
-              delta = parsed.choices[0].delta.content || ''
-            } else if (parsed.choices[0].message) {
-              delta = parsed.choices[0].message.content || ''
-            }
-          } else if (parsed.content) {
-            delta = parsed.content
-          } else {
-            delta = JSON.stringify(parsed)
-          }
-          
-          if (delta) {
-            if (!receivedChunk && typeof onFirstChunk === 'function') {
-              onFirstChunk()
-              receivedChunk = true
-            }
-            
-            assistantMessage.content += delta
-            scrollToBottom(false)
-          }
-        } catch (err) {
-          console.warn('解析流式片段失败:', err.message, payload)
-          if (!receivedChunk && typeof onFirstChunk === 'function') {
-            onFirstChunk()
-            receivedChunk = true
-          }
-          assistantMessage.content += payload
-          scrollToBottom(false)
-        }
-      }
-    }
-    
-    if (buffer.trim()) {
-      try {
-        const parsed = JSON.parse(buffer.trim())
-        let delta = ''
-        
-        if (parsed.choices && parsed.choices[0]) {
-          if (parsed.choices[0].delta) {
-            delta = parsed.choices[0].delta.content || ''
-          } else if (parsed.choices[0].message) {
-            delta = parsed.choices[0].message.content || ''
-          }
-        } else if (parsed.content) {
-          delta = parsed.content
-        } else {
-          delta = JSON.stringify(parsed)
-        }
-        
-        if (delta) {
-          if (!receivedChunk && typeof onFirstChunk === 'function') {
-            onFirstChunk()
-            receivedChunk = true
-          }
-          assistantMessage.content += delta
-          scrollToBottom()
-        }
-      } catch (err) {
-        console.warn('解析最终缓冲区内容失败:', err.message, buffer)
-        if (!receivedChunk && typeof onFirstChunk === 'function') {
-          onFirstChunk()
-          receivedChunk = true
-        }
-        assistantMessage.content += buffer
-        scrollToBottom()
-      }
-    }
-  } catch (streamError) {
-    console.error('流式处理过程中发生错误:', streamError)
-    if (!receivedChunk && typeof onFirstChunk === 'function') {
-      onFirstChunk()
-      receivedChunk = true
-    }
-    assistantMessage.content += `\n\n处理流式响应失败: ${streamError.message}`
-    scrollToBottom()
-  } finally {
-    if (reader) {
-      try {
-        reader.releaseLock()
-      } catch (e) {
-        console.warn('释放reader锁时出错:', e)
-      }
-    }
-  }
-  
-  return receivedChunk
-}
-
-const parseResponseText = (text) => {
-  try {
-    const data = JSON.parse(text)
-    return data.choices?.[0]?.message?.content || data.content || text
-  } catch {
-    return text
-  }
-}
-
 // 处理上传文件方法
 const handleUploadFile = (file) => {
   console.log('文件上传成功:', file)
@@ -761,8 +527,12 @@ const scrollToBottom = (smooth = true) => {
 // 设置选中的模型
 const setSelectedModel = (modelId) => {
   console.log('ChatPage收到模型切换事件:', modelId)
-  selectedModel.value = modelId
-  ElMessage.success(`已切换到模型：${modelConfig.value[modelId].name}`)
+  if (modelConfig.value[modelId]) {
+    selectedModel.value = modelId
+    ElMessage.success(`已切换到模型：${modelConfig.value[modelId].name}`)
+  } else {
+    console.warn('未找到模型配置:', modelId)
+  }
 }
 
 // 创建新会话

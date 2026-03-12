@@ -82,6 +82,7 @@
                 placeholder="请输入手机号（选填）"
                 prefix-icon="el-icon-mobile-phone"
                 size="large"
+                @keyup.enter="handleUsernameRegister"
               />
             </el-form-item>
             <el-form-item>
@@ -157,6 +158,7 @@
                 placeholder="请输入用户名（选填，不填则自动生成）"
                 prefix-icon="el-icon-user"
                 size="large"
+                @keyup.enter="handlePhoneRegister"
               />
             </el-form-item>
             <el-form-item>

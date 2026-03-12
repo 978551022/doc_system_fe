@@ -145,12 +145,26 @@ export const syncUserProfileFromServer = async () => {
     const response = await getCurrentUser()
     if (response && response.user_id) {
       let avatarUrl = response.avatar || ''
-      
+
       // 清理无效值
-      if (avatarUrl === 'null' || avatarUrl === 'undefined' || avatarUrl === null) {
+      if (avatarUrl === 'null' || avatarUrl === 'undefined' || avatarUrl === null || avatarUrl === '') {
         avatarUrl = ''
+      } else if (avatarUrl) {
+        // 如果已经是完整HTTP地址，直接使用
+        if (!avatarUrl.startsWith('http://') && !avatarUrl.startsWith('https://')) {
+          // 如果已经包含 /api/ 前缀，直接使用；否则添加 /api/v1 前缀
+          if (avatarUrl.startsWith('/api/')) {
+            avatarUrl = avatarUrl  // 后端已返回完整路径
+          } else {
+            // 确保路径以 / 开头
+            const normalizedPath = avatarUrl.startsWith('/') ? avatarUrl : '/' + avatarUrl
+            avatarUrl = '/api/v1' + normalizedPath
+          }
+        }
       }
-      
+
+      console.log('同步用户头像，后端返回:', response.avatar, '处理后的URL:', avatarUrl)
+
       const userInfo = {
         userId: response.user_id,
         username: response.username || userState.username,
