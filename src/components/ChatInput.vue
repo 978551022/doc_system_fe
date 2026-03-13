@@ -199,7 +199,6 @@
 
 <script setup>
 import { ref, defineEmits, watch } from 'vue'
-import { CircleCheck } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 // 定义事件
@@ -229,58 +228,54 @@ watch(
 // 输入消息
 const inputMessage = ref('')
 
-// 上传引用
-const uploadRef = ref(null)
-
 // 已上传文件列表
 const uploadedFiles = ref([])
 
 // 上传状态
 const isUploading = ref(false)
 
-// 当前选中的工具
-const selectedTool = ref(null)
-
 // 模型列表 - 支持多种模型
 const models = ref([
   { id: 'deepseek', name: 'DeepSeek', icon: 'el-icon-chat-dot-round' },
   { id: 'glm', name: 'GLM-4.5-Flash', icon: 'el-icon-chat-dot-round' },
-  { id: 'qwen', name: 'Qwen 2', icon: 'el-icon-chat-dot-round' },
+  { id: 'qwen2', name: 'Qwen2', icon: 'el-icon-chat-dot-round' },
+  { id: 'qwen3', name: 'Qwen3', icon: 'el-icon-chat-dot-round' },
+  { id: 'doubao', name: 'Doubao', icon: 'el-icon-chat-dot-round' },
   { id: 'llama3', name: 'Llama 3', icon: 'el-icon-chat-dot-round' }
 ])
 
-// 当前选中的模型
-const selectedModel = ref('deepseek') // 默认使用DeepSeek模型，不再使用Qwen 2
+// 当前选中的模型（使用 prop 默认值）
+const selectedModel = ref(props.currentModel)
 
-// 联网搜索开关状态（从本地配置初始化，跨页面保持）
-const loadInternetSearchInitial = () => {
+// localStorage 配置管理工具函数
+const loadConfig = (key, defaultValue = false) => {
   try {
     const raw = localStorage.getItem('chatConfig')
-    if (!raw) return false
+    if (!raw) return defaultValue
     const parsed = JSON.parse(raw)
-    return !!parsed.isInternetSearchEnabled
+    return !!parsed[key]
   } catch (error) {
-    console.error('加载联网搜索配置失败:', error)
-    return false
+    console.error(`加载配置失败 [${key}]:`, error)
+    return defaultValue
   }
 }
 
-const isInternetSearchEnabled = ref(loadInternetSearchInitial())
+const updateConfig = (key, value) => {
+  try {
+    const raw = localStorage.getItem('chatConfig')
+    const parsed = raw ? JSON.parse(raw) : {}
+    parsed[key] = !!value
+    localStorage.setItem('chatConfig', JSON.stringify(parsed))
+  } catch (error) {
+    console.error(`保存配置失败 [${key}]:`, error)
+  }
+}
+
+// 联网搜索开关状态
+const isInternetSearchEnabled = ref(loadConfig('isInternetSearchEnabled'))
 
 // 深度推理开关状态
-const loadDeepReasoningInitial = () => {
-  try {
-    const raw = localStorage.getItem('chatConfig')
-    if (!raw) return false
-    const parsed = JSON.parse(raw)
-    return !!parsed.isDeepReasoningEnabled
-  } catch (error) {
-    console.error('加载深度推理配置失败:', error)
-    return false
-  }
-}
-
-const isDeepReasoningEnabled = ref(loadDeepReasoningInitial())
+const isDeepReasoningEnabled = ref(loadConfig('isDeepReasoningEnabled'))
 
 // 历史记录弹窗显示状态
 const showHistoryDialog = ref(false)
@@ -297,62 +292,15 @@ const handleModelChange = (modelId) => {
 
 // 处理联网搜索开关变化
 const handleInternetSearchChange = (value) => {
-  // 持久化到本地配置，保证切换功能栏后仍然保持当前状态
-  try {
-    const raw = localStorage.getItem('chatConfig')
-    const parsed = raw ? JSON.parse(raw) : {}
-    parsed.isInternetSearchEnabled = !!value
-    localStorage.setItem('chatConfig', JSON.stringify(parsed))
-  } catch (error) {
-    console.error('保存联网搜索配置失败:', error)
-  }
-  // 不再显示弹窗提示
+  updateConfig('isInternetSearchEnabled', value)
 }
 
 // 深度推理开关变化
 const handleDeepReasoningChange = (value) => {
-  try {
-    const raw = localStorage.getItem('chatConfig')
-    const parsed = raw ? JSON.parse(raw) : {}
-    parsed.isDeepReasoningEnabled = !!value
-    localStorage.setItem('chatConfig', JSON.stringify(parsed))
-  } catch (error) {
-    console.error('保存深度推理配置失败:', error)
-  }
-  // 不再显示弹窗提示
+  updateConfig('isDeepReasoningEnabled', value)
 }
 
-// 监听深度推理状态变化，保持与 localStorage 同步
-watch(
-  () => isDeepReasoningEnabled.value,
-  (val) => {
-    try {
-      const raw = localStorage.getItem('chatConfig')
-      const parsed = raw ? JSON.parse(raw) : {}
-      parsed.isDeepReasoningEnabled = !!val
-      localStorage.setItem('chatConfig', JSON.stringify(parsed))
-    } catch (error) {
-      console.error('同步深度推理配置失败:', error)
-    }
-  }
-)
-
-// 当本地状态变化时，同步到 localStorage（防止其他地方修改覆盖）
-watch(
-  () => isInternetSearchEnabled.value,
-  (val) => {
-    try {
-      const raw = localStorage.getItem('chatConfig')
-      const parsed = raw ? JSON.parse(raw) : {}
-      parsed.isInternetSearchEnabled = !!val
-      localStorage.setItem('chatConfig', JSON.stringify(parsed))
-    } catch (error) {
-      console.error('同步联网搜索配置失败:', error)
-    }
-  }
-)
-
-// 监听 localStorage 的变化，同步回本地状态（用于处理 createNewSession 的重置）
+// 监听 localStorage 的变化，同步回本地状态
 watch(
   () => {
     try {
@@ -364,11 +312,10 @@ watch(
     }
   },
   (config) => {
-    // 更新本地状态
     isInternetSearchEnabled.value = !!config.isInternetSearchEnabled
     isDeepReasoningEnabled.value = !!config.isDeepReasoningEnabled
   },
-  { deep: true }
+  { deep: true, immediate: true }
 )
 
 // 处理新建对话
@@ -727,142 +674,169 @@ const handlePause = () => {
   color: white;
 }
 
-/* 联网搜索开关 */
-.internet-search-switch {
-  margin-right: 8px;
-}
-
-.internet-search-switch :deep(.el-switch__label) {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 500;
-  transition: color 0.2s ease;
-}
-
-.internet-search-switch :deep(.el-switch__label.is-active) {
-  color: #8b5cf6;
-  font-weight: 600;
-}
-
-.internet-search-switch :deep(.el-switch__core) {
-  width: 38px;
-  height: 22px;
-  border-radius: 11px;
-  background-color: var(--border-color);
-  border: none;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.internet-search-switch :deep(.el-switch__core:after) {
-  width: 18px;
-  height: 18px;
-  top: 1px;
-  left: 1px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.internet-search-switch :deep(.el-switch.is-checked .el-switch__core) {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
-}
-
-.internet-search-switch :deep(.el-switch.is-checked .el-switch__core:after) {
-  left: calc(100% - 19px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
-}
-
-.internet-search-switch:hover :deep(.el-switch__core) {
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(139, 92, 246, 0.1);
-}
-
-.internet-search-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
-  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.4);
-}
-
-.dark-theme .internet-search-switch :deep(.el-switch__label.is-active) {
-  color: #a78bfa;
-}
-
-.dark-theme .internet-search-switch :deep(.el-switch__core) {
-  background-color: #374151;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-.dark-theme .internet-search-switch :deep(.el-switch__core:after) {
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-}
-
-/* 深度推理开关 */
+/* ========== 功能开关通用样式 ========== */
+.internet-search-switch,
 .deep-reasoning-switch {
-  margin-right: 8px;
+  margin-right: 12px;
+  background: transparent !important;
 }
 
+/* 确保开关组件本身没有额外背景 */
+.internet-search-switch :deep(.el-switch),
+.deep-reasoning-switch :deep(.el-switch) {
+  background: transparent !important;
+}
+
+/* 开关标签文本 */
+.internet-search-switch :deep(.el-switch__label),
 .deep-reasoning-switch :deep(.el-switch__label) {
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  transition: color 0.2s ease;
+  transition: color 0.25s ease;
+  background: transparent !important;
 }
 
+/* 开启时文字变紫色 */
+.internet-search-switch :deep(.el-switch__label.is-active),
 .deep-reasoning-switch :deep(.el-switch__label.is-active) {
   color: #8b5cf6;
   font-weight: 600;
+  background: transparent !important;
 }
 
+/* 开关主体 - 使用 CSS 变量自适应主题 */
+.internet-search-switch :deep(.el-switch__core),
 .deep-reasoning-switch :deep(.el-switch__core) {
-  width: 38px;
-  height: 22px;
-  border-radius: 11px;
-  background-color: var(--border-color);
-  border: none;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  width: 40px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: var(--border-color) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
+/* 开关滑块 */
+.internet-search-switch :deep(.el-switch__core:after),
 .deep-reasoning-switch :deep(.el-switch__core:after) {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   top: 1px;
   left: 1px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  background-color: var(--card-background) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* 选中状态 - 紫色背景填充（使用多重选择器确保覆盖） */
+.internet-search-switch :deep(.el-switch__core),
+.deep-reasoning-switch :deep(.el-switch__core) {
+  background-color: var(--border-color) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 当开关被选中时 */
+.internet-search-switch :deep(.el-switch.is-checked),
+.deep-reasoning-switch :deep(.el-switch.is-checked) {
+  background-color: transparent !important;
+}
+
+.internet-search-switch :deep(.el-switch.is-checked .el-switch__core),
 .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core) {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+  background-color: rgba(139, 92, 246, 0.4) !important;
+  border-color: rgba(139, 92, 246, 0.6) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
+/* 额外的覆盖规则，针对 Element Plus 的可能结构 */
+.internet-search-switch[class] :deep(.el-switch__core),
+.deep-reasoning-switch[class] :deep(.el-switch__core) {
+  background-color: var(--border-color) !important;
+}
+
+.internet-search-switch[class].is-checked :deep(.el-switch__core),
+.deep-reasoning-switch[class].is-checked :deep(.el-switch__core) {
+  background-color: rgba(139, 92, 246, 0.4) !important;
+  border-color: rgba(139, 92, 246, 0.6) !important;
+}
+
+.internet-search-switch :deep(.el-switch.is-checked .el-switch__core:after),
 .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core:after) {
-  left: calc(100% - 19px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  left: calc(100% - 21px);
+  background-color: var(--card-background) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
+/* hover 效果 - 只改变边框颜色和阴影 */
+.internet-search-switch:hover :deep(.el-switch__core),
 .deep-reasoning-switch:hover :deep(.el-switch__core) {
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(139, 92, 246, 0.1);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 3px rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.3) !important;
 }
 
+.internet-search-switch:hover :deep(.el-switch.is-checked .el-switch__core),
 .deep-reasoning-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
-  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.4);
+  background-color: rgba(139, 92, 246, 0.5) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 3px rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.7) !important;
 }
 
+/* ========== 深色模式适配 ========== */
+
+/* 深色模式下的文字颜色 */
+.dark-theme .internet-search-switch :deep(.el-switch__label.is-active),
 .dark-theme .deep-reasoning-switch :deep(.el-switch__label.is-active) {
   color: #a78bfa;
 }
 
+/* 深色模式确保背景色正确 */
+.dark-theme .internet-search-switch :deep(.el-switch__core),
 .dark-theme .deep-reasoning-switch :deep(.el-switch__core) {
-  background-color: #374151;
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+  background-color: var(--border-color) !important;
+  border-color: var(--border-color) !important;
 }
 
+.dark-theme .internet-search-switch :deep(.el-switch__core:after),
 .dark-theme .deep-reasoning-switch :deep(.el-switch__core:after) {
-  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+  background-color: var(--card-background) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* 深色模式选中状态 */
+.dark-theme .internet-search-switch :deep(.el-switch.is-checked .el-switch__core),
+.dark-theme .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core),
+.dark-theme .internet-search-switch[class].is-checked :deep(.el-switch__core),
+.dark-theme .deep-reasoning-switch[class].is-checked :deep(.el-switch__core) {
+  background-color: rgba(167, 139, 250, 0.45) !important;
+  border-color: rgba(167, 139, 250, 0.65) !important;
+}
+
+.dark-theme .internet-search-switch :deep(.el-switch.is-checked .el-switch__core:after),
+.dark-theme .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core:after) {
+  background-color: var(--card-background) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* 深色模式下的 hover 效果 */
+.dark-theme .internet-search-switch:hover :deep(.el-switch__core),
+.dark-theme .deep-reasoning-switch:hover :deep(.el-switch__core) {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(167, 139, 250, 0.12);
+  border-color: rgba(167, 139, 250, 0.3) !important;
+  background-color: var(--border-color) !important;
+}
+
+.dark-theme .internet-search-switch:hover :deep(.el-switch.is-checked .el-switch__core),
+.dark-theme .deep-reasoning-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
+  background-color: rgba(167, 139, 250, 0.55) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(167, 139, 250, 0.18);
+  border-color: rgba(167, 139, 250, 0.75) !important;
 }
 
 /* 响应式设计 */

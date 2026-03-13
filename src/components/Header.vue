@@ -19,12 +19,12 @@
         </div>
       </div>
     </div>
-    
+
     <!-- 右侧用户区域 -->
     <div class="app-header__right">
       <el-dropdown @command="handleUserCommand" trigger="click">
         <div class="user-avatar-wrapper">
-          <el-avatar :size="36" :src="userState.avatar" class="user-avatar" @error="handleAvatarError">
+          <el-avatar :size="36" :src="cachedAvatar" class="user-avatar" @error="handleAvatarError">
             <i v-if="!userState.avatar" class="el-icon-user-solid"></i>
             <span v-else>{{ userState.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
           </el-avatar>
@@ -52,13 +52,26 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import userState, { logout as logoutUser, getToken } from '../utils/userStore.js'
 import { logout as logoutApi } from '../api/auth.js'
 
 const router = useRouter()
+
+// 缓存头像URL，避免频繁重新请求
+const cachedAvatar = ref(userState.avatar || '')
+
+// 监听头像变化，只有真正变化时才更新
+watch(
+  () => userState.avatar,
+  (newAvatar) => {
+    if (newAvatar !== cachedAvatar.value) {
+      cachedAvatar.value = newAvatar
+    }
+  }
+)
 
 // 头像加载失败处理
 const handleAvatarError = (e) => {

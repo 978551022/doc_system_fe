@@ -16,10 +16,10 @@
           <template v-if="message.role === 'user'">
             <el-avatar
               :size="32"
-              :src="userState.avatar"
+              :src="cachedAvatar"
               class="chat-avatar chat-avatar--user"
             >
-              <i v-if="!userState.avatar" class="el-icon-user"></i>
+              <i v-if="!cachedAvatar" class="el-icon-user"></i>
             </el-avatar>
           </template>
           <!-- 助手头像：类 chatbox 机器人形象 -->
@@ -304,6 +304,19 @@ marked.setOptions({
 // 路由对象，用于接收 HistoryPage 传入的会话 ID
 const route = useRoute()
 
+// 缓存头像URL，避免频繁重新请求
+const cachedAvatar = ref(userState.avatar || '')
+
+// 监听头像变化，只有真正变化时才更新
+watch(
+  () => userState.avatar,
+  (newAvatar) => {
+    if (newAvatar !== cachedAvatar.value) {
+      cachedAvatar.value = newAvatar
+    }
+  }
+)
+
 // 聊天会话列表
 const chatSessions = ref([
   {
@@ -344,7 +357,8 @@ const modelConfig = ref({
   glm: { name: "GLM-4.5-Flash" },
   deepseek: { name: "DeepSeek" },
   qwen2: { name: "通义千问Plus" },
-  qwen3: { name: "通义千问VL" },
+  qwen3: { name: "通义千问3" },
+  doubao: { name: "豆包" },
   llama3: { name: "Llama 3" }
 })
 
@@ -353,6 +367,8 @@ const models = ref([
   { id: 'glm', name: 'GLM-4.5-Flash', icon: 'el-icon-chat-dot-round' },
   { id: 'deepseek', name: 'DeepSeek', icon: 'el-icon-chat-dot-round' },
   { id: 'qwen2', name: '通义千问Plus', icon: 'el-icon-chat-dot-round' },
+  { id: 'qwen3', name: '通义千问3', icon: 'el-icon-chat-dot-round' },
+  { id: 'doubao', name: '豆包', icon: 'el-icon-chat-dot-round' },
   { id: 'llama3', name: 'Llama 3', icon: 'el-icon-chat-dot-round' }
 ])
 
@@ -385,7 +401,6 @@ const handlePauseGeneration = () => {
   }
 
   isGenerating.value = false
-  ElMessage.info('已暂停生成')
 }
 
 // 从消息继续生成（点击消息操作栏的继续生成按钮）
@@ -400,30 +415,10 @@ const continueGenerationFromMessage = async (message) => {
   let currentContent = ''
 
   if (message.rawContent) {
-    // 使用原始内容，移除元数据标记
+    // 使用原始内容，保留完整内容用于续写（包括推理标签，让后端处理）
     currentContent = message.rawContent
-    // 移除推理过程标记，只保留答案部分用于续写
-    const reasoningStartTag = '<推理过程>'
-    const reasoningEndTag = '</推理过程>'
-    const answerStartTag = '<最终答案>'
 
-    // 如果有推理标签，提取答案部分
-    if (currentContent.includes(reasoningStartTag) && currentContent.includes(reasoningEndTag)) {
-      const reasoningEnd = currentContent.indexOf(reasoningEndTag)
-      currentContent = currentContent.substring(reasoningEnd + reasoningEndTag.length)
-    } else if (currentContent.includes(reasoningStartTag)) {
-      // 只有开始标签，移除开始标签及之后的内容
-      const reasoningStart = currentContent.indexOf(reasoningStartTag)
-      currentContent = currentContent.substring(0, reasoningStart)
-    }
-
-    // 移除最终答案标签
-    if (currentContent.includes(answerStartTag)) {
-      const answerStart = currentContent.indexOf(answerStartTag)
-      currentContent = currentContent.substring(answerStart + answerStartTag.length)
-    }
-
-    // 清理元数据
+    // 清理元数据（但保留推理标签）
     currentContent = currentContent.replace(/^content=''?\s*$/gm, '')
     currentContent = currentContent.replace(/^usage_metadata=\{[^}]*\}\s*/g, '')
     currentContent = currentContent.replace(/^additional_kwargs=\{.*?\}\s*$/gm, '')
@@ -443,7 +438,7 @@ const continueGenerationFromMessage = async (message) => {
     return
   }
 
-  // 发送续写请求
+  // 发送续写请求，使用完整的 rawContent（后端会处理推理标签）
   await doContinueGeneration(currentContent, message)
 }
 
@@ -472,6 +467,18 @@ const doContinueGeneration = async (continueFromContent, targetMessage) => {
 
     const reasoningStartTime = Date.now()
 
+    // 检测原内容是否包含推理标签
+    const reasoningStartTag = '<推理过程>'
+    const reasoningEndTag = '</推理过程>'
+    const hasReasoningInOriginal = continueFromContent.includes(reasoningStartTag)
+
+    // 如果原消息有推理内容，保存它以便后续恢复
+    const savedReasoningContent = assistantMessage.reasoningContent || ''
+    const savedReasoningHtml = assistantMessage.reasoningHtml || ''
+    const savedReasoningRawContent = assistantMessage.reasoningRawContent || ''
+    const savedReasoningCompleted = assistantMessage.reasoningCompleted
+    const savedReasoningDuration = assistantMessage.reasoningDuration
+
     let rawContent = continueFromContent
 
     await intelligentQuery(
@@ -488,8 +495,30 @@ const doContinueGeneration = async (continueFromContent, targetMessage) => {
       (chunkContent) => {
         if (chunkContent) {
           rawContent += chunkContent
-          // 续写生成时不显示深度推理折叠内容
-          parseContentAndReasoning(assistantMessage, rawContent, false, false)
+
+          // 检查当前内容状态
+          const isInReasoning = rawContent.includes(reasoningStartTag) &&
+                                !rawContent.includes(reasoningEndTag)
+          const hasCompleteReasoning = rawContent.includes(reasoningStartTag) &&
+                                       rawContent.includes(reasoningEndTag)
+
+          // 根据当前内容状态决定解析方式
+          if (hasCompleteReasoning || isInReasoning) {
+            // 有推理内容，使用深度推理模式解析
+            parseContentAndReasoning(assistantMessage, rawContent, reasoningStartTime, true)
+          } else {
+            // 没有推理标签了，说明在输出答案部分
+            parseContentAndReasoning(assistantMessage, rawContent, null, false)
+
+            // 如果原消息有推理内容，确保它被保留
+            if (hasReasoningInOriginal && savedReasoningContent) {
+              assistantMessage.reasoningContent = savedReasoningContent
+              assistantMessage.reasoningHtml = savedReasoningHtml
+              assistantMessage.reasoningRawContent = savedReasoningRawContent
+              assistantMessage.reasoningCompleted = savedReasoningCompleted
+              assistantMessage.reasoningDuration = savedReasoningDuration
+            }
+          }
           scrollToBottom(false)
         }
       },
@@ -508,11 +537,24 @@ const doContinueGeneration = async (continueFromContent, targetMessage) => {
       },
       // onComplete
       () => {
+        // 确保 rawContent 被保存
+        assistantMessage.rawContent = rawContent
+
+        // 如果原消息有推理内容，确保它被保留（最终确认）
+        if (hasReasoningInOriginal && savedReasoningContent) {
+          assistantMessage.reasoningContent = savedReasoningContent
+          assistantMessage.reasoningHtml = savedReasoningHtml
+          assistantMessage.reasoningRawContent = savedReasoningRawContent
+          assistantMessage.reasoningCompleted = savedReasoningCompleted
+          assistantMessage.reasoningDuration = savedReasoningDuration
+        }
+
         assistantMessage.isComplete = true
         assistantMessage.isLastGenerating = false
         currentGeneratingMessage.value = null
         isGenerating.value = false
         isPaused.value = false
+        // 完成后重新解析markdown
         parseMarkdown(assistantMessage)
       }
     )
@@ -521,6 +563,18 @@ const doContinueGeneration = async (continueFromContent, targetMessage) => {
     // 如果是用户主动中止的请求（如暂停生成），静默处理
     if (error.name === 'AbortError') {
       console.warn('[续写生成] 用户中止:', error.message)
+      // 保存当前rawContent以便续传
+      if (targetMessage && rawContent) {
+        targetMessage.rawContent = rawContent
+      }
+      // 恢复原消息的推理内容（如果有）
+      if (targetMessage && savedReasoningContent) {
+        targetMessage.reasoningContent = savedReasoningContent
+        targetMessage.reasoningHtml = savedReasoningHtml
+        targetMessage.reasoningRawContent = savedReasoningRawContent
+        targetMessage.reasoningCompleted = savedReasoningCompleted
+        targetMessage.reasoningDuration = savedReasoningDuration
+      }
       // 保持 isLastGenerating 为 true 以显示继续生成按钮
       isPaused.value = true
       if (targetMessage) {
@@ -1040,6 +1094,15 @@ const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null
   } else if (cleanContent.includes(reasoningStartTag) || cleanContent.includes(answerStartTag)) {
     // deepReasoning 为 false，但内容中包含推理标签
     // 移除推理标签，将推理内容合并到主内容中
+    // 注意：如果消息已有推理属性（来自之前的续传），则保留它们不覆盖
+
+    // 先保存现有的推理属性（如果有）
+    const existingReasoningContent = message.reasoningContent || ''
+    const existingReasoningHtml = message.reasoningHtml || ''
+    const existingReasoningRawContent = message.reasoningRawContent || ''
+    const existingReasoningCompleted = message.reasoningCompleted
+    const existingReasoningDuration = message.reasoningDuration
+
     if (cleanContent.includes(reasoningStartTag)) {
       const reasoningStart = cleanContent.indexOf(reasoningStartTag)
       const reasoningEnd = cleanContent.indexOf(reasoningEndTag)
@@ -1067,12 +1130,21 @@ const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null
       }
     }
 
-    // 清除推理相关的消息属性
-    message.reasoningRawContent = ''
-    message.reasoningContent = ''
-    message.reasoningHtml = ''
-    message.reasoningCompleted = false
-    message.reasoningDuration = ''
+    // 如果消息已有推理属性，则恢复它们（不清除）
+    if (existingReasoningContent) {
+      message.reasoningContent = existingReasoningContent
+      message.reasoningHtml = existingReasoningHtml
+      message.reasoningRawContent = existingReasoningRawContent
+      message.reasoningCompleted = existingReasoningCompleted
+      message.reasoningDuration = existingReasoningDuration
+    } else {
+      // 只有当没有现有推理属性时才清除
+      message.reasoningRawContent = ''
+      message.reasoningContent = ''
+      message.reasoningHtml = ''
+      message.reasoningCompleted = false
+      message.reasoningDuration = ''
+    }
   }
 
   // 处理最终答案标记（deepReasoning 为 true 时）
@@ -1310,7 +1382,6 @@ const scrollToBottom = (smooth = true, force = false) => {
 const setSelectedModel = (modelId) => {
   if (modelConfig.value[modelId]) {
     selectedModel.value = modelId
-    ElMessage.success(`已切换到模型：${modelConfig.value[modelId].name}`)
   } else {
     console.warn('未找到模型配置:', modelId)
   }
@@ -1717,9 +1788,18 @@ defineExpose({
   border-bottom-right-radius: var(--radius-sm);
 }
 
-/* 浅色模式下用户消息背景色优化 - 使用蓝色渐变替代紫色 */
-:root .chat-message--user .chat-message__text {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+/* 浅色模式下用户消息背景色优化 - 使用浅色背景 */
+:not(.dark-theme) .chat-message--user .chat-message__text {
+  background: #f0f4f8;
+  color: var(--text-primary);
+  border: 1px solid #e2e8f0;
+}
+
+/* 深色模式下用户消息背景色优化 - 使用深色背景 */
+.dark-theme .chat-message--user .chat-message__text {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
 }
 
 .chat-message--assistant .chat-message__text {
@@ -2359,7 +2439,7 @@ defineExpose({
   margin-left: 4px;
 }
 
-/* 继续生成按钮样式（在消息操作栏中） */
+/* 继续生成按钮样式（在消息操作栏中） - 增加左边距与其他按钮分开 */
 .continue-generate-btn {
   color: #10b981 !important;
   background-color: rgba(16, 185, 129, 0.1);
@@ -2371,6 +2451,7 @@ defineExpose({
   gap: 4px;
   font-weight: 500;
   transition: var(--transition-fast);
+  margin-left: 12px; /* 与左侧按钮保持更大距离 */
 }
 
 .continue-generate-btn:hover {

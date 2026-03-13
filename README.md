@@ -5,6 +5,7 @@
 [![Vue 3](https://img.shields.io/badge/Vue-3.5-42b883)](https://vuejs.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.0-646cff)](https://vitejs.dev/)
 [![Element Plus](https://img.shields.io/badge/Element_Plus-2.11-409eff)](https://element-plus.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## ✨ 功能亮点
 
@@ -12,9 +13,13 @@
 - **流式输出**：AI响应逐字渲染，体验流畅
 - **Markdown渲染**：支持代码高亮、表格、列表等富文本
 - **深度推理**：可折叠展示AI的思考过程
-- **多模型切换**：支持切换不同的AI模型
-- **联网搜索**：可选开启在线搜索功能
-- **文件上传**：支持上传文档作为对话上下文
+- **多模型切换**：支持 DeepSeek、GLM、Qwen、Doubao、Llama 等多种AI模型
+- **联网搜索**：可选开启在线搜索功能，增强AI回答能力
+- **文件上传**：支持上传文档作为对话上下文（支持 .doc, .docx, .pdf, .txt，最大500MB）
+- **优化交互**：
+  - 精美的开关控件，支持深色/浅色主题自适应
+  - 实时状态指示，操作反馈清晰
+  - 会话历史持久化存储
 
 ### 📁 文档管理
 - 文档上传与处理状态追踪
@@ -28,21 +33,42 @@
 - 响应结果格式化展示
 
 ### 🎨 界面特性
-- **主题切换**：浅色/深色/跟随系统
-- **响应式设计**：适配不同屏幕尺寸
-- **会话管理**：历史对话记录与搜索
+- **主题切换**：浅色/深色/跟随系统，使用 CSS 变量实现
+- **响应式设计**：适配桌面和移动设备
+- **会话管理**：历史对话记录与搜索，支持本地持久化
+- **性能优化**：
+  - 组件代码优化，消除冗余逻辑
+  - localStorage 操作高效管理
+  - 样式复用，减少代码重复
 
 ## 🛠️ 技术栈
 
 | 技术 | 说明 |
 |------|------|
 | Vue 3 | 渐进式前端框架，使用Composition API |
-| Element Plus | Vue 3 组件库 |
-| Vue Router 4 | 路由管理 |
-| Axios | HTTP客户端 |
-| Vite | 构建工具 |
-| marked | Markdown解析 |
-| highlight.js | 代码高亮 |
+| Element Plus | Vue 3 组件库，提供丰富的UI组件 |
+| Vue Router 4 | 路由管理，支持嵌套路由和导航守卫 |
+| Axios | HTTP客户端，支持请求拦截和响应处理 |
+| Vite | 下一代前端构建工具，极速开发体验 |
+| marked | Markdown解析器，支持GFM（GitHub Flavored Markdown） |
+| highlight.js | 代码语法高亮，支持180+种编程语言 |
+
+## 🎬 最近更新
+
+### v1.1.0 (2026-03)
+- ✨ **聊天输入组件优化**：
+  - 重构开关控件样式，支持自适应主题
+  - 优化 localStorage 配置管理，提升性能
+  - 消除代码重复，减少150+行冗余CSS
+  - 改进视觉反馈，开启状态更明显
+- 🐛 **Bug修复**：
+  - 修复 prop 默认值未生效问题
+  - 修复 localStorage 双重写入问题
+  - 移除未使用的导入和变量
+- 🎨 **样式优化**：
+  - 开关控件使用紫色主题色
+  - 深色/浅色模式完美适配
+  - Hover 效果优化，交互更流畅
 
 ## 📦 快速开始
 
