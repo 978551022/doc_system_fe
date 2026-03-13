@@ -161,16 +161,31 @@
           class="chat-input__textarea"
         ></el-input>
 
-        <!-- 发送按钮 -->
-        <el-button 
-          type="primary" 
-          @click="sendMessage" 
+        <!-- 发送按钮 / 暂停按钮 -->
+        <el-button
+          v-if="!isGenerating"
+          type="primary"
+          @click="sendMessage"
           :disabled="!inputMessage.trim() && uploadedFiles.length === 0"
           size="large"
+          class="send-btn"
           title="发送"
         >
           <i class="el-icon-s-promotion"></i>
           发送
+        </el-button>
+        <el-button
+          v-else
+          type="warning"
+          @click="handlePause"
+          size="large"
+          class="pause-btn"
+          title="暂停生成"
+        >
+          <svg class="pause-icon" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="5" width="4" height="14" rx="1"/>
+            <rect x="14" y="5" width="4" height="14" rx="1"/>
+          </svg>
         </el-button>
       </div>
 
@@ -188,13 +203,18 @@ import { CircleCheck } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
 // 定义事件
-const emit = defineEmits(['sendMessage', 'uploadFile', 'modelChange', 'newChat', 'loadHistory', 'deleteHistory'])
+const emit = defineEmits(['sendMessage', 'uploadFile', 'modelChange', 'newChat', 'loadHistory', 'deleteHistory', 'pauseGeneration'])
 
 // 接收当前选中的模型作为props
 const props = defineProps({
   currentModel: {
     type: String,
     default: 'deepseek'
+  },
+  // 是否正在生成
+  isGenerating: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -286,8 +306,7 @@ const handleInternetSearchChange = (value) => {
   } catch (error) {
     console.error('保存联网搜索配置失败:', error)
   }
-
-  ElMessage.info(value ? '已开启联网搜索' : '已关闭联网搜索')
+  // 不再显示弹窗提示
 }
 
 // 深度推理开关变化
@@ -300,8 +319,7 @@ const handleDeepReasoningChange = (value) => {
   } catch (error) {
     console.error('保存深度推理配置失败:', error)
   }
-
-  ElMessage.info(value ? '已开启深度推理' : '已关闭深度推理')
+  // 不再显示弹窗提示
 }
 
 // 监听深度推理状态变化，保持与 localStorage 同步
@@ -332,6 +350,25 @@ watch(
       console.error('同步联网搜索配置失败:', error)
     }
   }
+)
+
+// 监听 localStorage 的变化，同步回本地状态（用于处理 createNewSession 的重置）
+watch(
+  () => {
+    try {
+      const raw = localStorage.getItem('chatConfig')
+      if (!raw) return { isInternetSearchEnabled: false, isDeepReasoningEnabled: false }
+      return JSON.parse(raw)
+    } catch {
+      return { isInternetSearchEnabled: false, isDeepReasoningEnabled: false }
+    }
+  },
+  (config) => {
+    // 更新本地状态
+    isInternetSearchEnabled.value = !!config.isInternetSearchEnabled
+    isDeepReasoningEnabled.value = !!config.isDeepReasoningEnabled
+  },
+  { deep: true }
 )
 
 // 处理新建对话
@@ -435,6 +472,11 @@ const sendMessage = () => {
   // 清空输入
   inputMessage.value = ''
   uploadedFiles.value = []
+}
+
+// 暂停生成
+const handlePause = () => {
+  emit('pauseGeneration')
 }
 </script>
 
@@ -559,6 +601,56 @@ const sendMessage = () => {
   color: var(--text-muted);
 }
 
+/* 暂停按钮 - 类似手机录像按钮（红色圆形） */
+.pause-btn {
+  background: #ef4444 !important;
+  border: none !important;
+  border-radius: 50% !important;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  padding: 0 !important;
+  transition: var(--transition) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.pause-btn:hover {
+  background: #dc2626 !important;
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.5);
+}
+
+.pause-btn:active {
+  transform: scale(0.95);
+}
+
+.pause-icon {
+  width: 18px;
+  height: 18px;
+  fill: white;
+}
+
+/* 暗色主题下的暂停按钮 */
+.dark-theme .pause-btn {
+  background: #f87171 !important;
+  box-shadow: 0 4px 12px rgba(248, 113, 113, 0.35);
+}
+
+.dark-theme .pause-btn:hover {
+  background: #ef4444 !important;
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.45);
+}
+
+/* 发送按钮 */
+.send-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* 上传按钮 */
 .chat-input__upload-btn {
   color: var(--text-secondary) !important;
@@ -637,56 +729,140 @@ const sendMessage = () => {
 
 /* 联网搜索开关 */
 .internet-search-switch {
-  margin-right: 12px;
-  background-color: var(--surface-color);
-  border-radius: var(--radius-md);
-  padding: 4px 10px;
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
-}
-
-.internet-search-switch :deep(.el-switch__core) {
-  background-color: var(--border-color);
-  border-color: var(--border-color);
-  transition: var(--transition);
-}
-
-.internet-search-switch :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
+  margin-right: 8px;
 }
 
 .internet-search-switch :deep(.el-switch__label) {
   color: var(--text-secondary);
   font-size: 12px;
+  font-weight: 500;
+  transition: color 0.2s ease;
 }
 
-/* 深度推理开关，与联网搜索风格保持一致但使用不同间距，便于区分 */
-.deep-reasoning-switch {
-  margin-right: 12px;
-  background-color: var(--surface-color);
-  border-radius: var(--radius-md);
-  padding: 4px 10px;
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
+.internet-search-switch :deep(.el-switch__label.is-active) {
+  color: #8b5cf6;
+  font-weight: 600;
 }
 
-.deep-reasoning-switch :deep(.el-switch__core) {
+.internet-search-switch :deep(.el-switch__core) {
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
   background-color: var(--border-color);
-  border-color: var(--border-color);
-  transition: var(--transition);
+  border: none;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: var(--primary-color);
-  border-color: var(--primary-color);
+.internet-search-switch :deep(.el-switch__core:after) {
+  width: 18px;
+  height: 18px;
+  top: 1px;
+  left: 1px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.internet-search-switch :deep(.el-switch.is-checked .el-switch__core) {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.internet-search-switch :deep(.el-switch.is-checked .el-switch__core:after) {
+  left: calc(100% - 19px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.internet-search-switch:hover :deep(.el-switch__core) {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.internet-search-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.4);
+}
+
+.dark-theme .internet-search-switch :deep(.el-switch__label.is-active) {
+  color: #a78bfa;
+}
+
+.dark-theme .internet-search-switch :deep(.el-switch__core) {
+  background-color: #374151;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.dark-theme .internet-search-switch :deep(.el-switch__core:after) {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+}
+
+/* 深度推理开关 */
+.deep-reasoning-switch {
+  margin-right: 8px;
 }
 
 .deep-reasoning-switch :deep(.el-switch__label) {
   color: var(--text-secondary);
   font-size: 12px;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.deep-reasoning-switch :deep(.el-switch__label.is-active) {
+  color: #8b5cf6;
+  font-weight: 600;
+}
+
+.deep-reasoning-switch :deep(.el-switch__core) {
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background-color: var(--border-color);
+  border: none;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.deep-reasoning-switch :deep(.el-switch__core:after) {
+  width: 18px;
+  height: 18px;
+  top: 1px;
+  left: 1px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core) {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+}
+
+.deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core:after) {
+  left: calc(100% - 19px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.deep-reasoning-switch:hover :deep(.el-switch__core) {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(139, 92, 246, 0.1);
+}
+
+.deep-reasoning-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.4);
+}
+
+.dark-theme .deep-reasoning-switch :deep(.el-switch__label.is-active) {
+  color: #a78bfa;
+}
+
+.dark-theme .deep-reasoning-switch :deep(.el-switch__core) {
+  background-color: #374151;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.dark-theme .deep-reasoning-switch :deep(.el-switch__core:after) {
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
 }
 
 /* 响应式设计 */

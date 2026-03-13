@@ -19,6 +19,7 @@ const INTELLIGENT_SEARCH_BASE_URL = 'v1/docsearch/intelligent-search'
  * @param {boolean} [params.stream=true] - 是否流式输出
  * @param {boolean} [params.online_search=false] - 是否启用联网搜索
  * @param {boolean} [params.deep_reasoning=false] - 是否启用深度推理
+ * @param {string} [params.continue_from_content] - 继续生成时传递已生成的内容
  * @param {Function} onChunk - 接收流式数据的回调函数
  * @param {Function} onMetadata - 接收元数据的回调函数
  * @param {Function} onError - 接收错误的回调函数
@@ -34,7 +35,9 @@ export const intelligentQuery = async ({
   model_name = 'glm',
   stream = true,
   online_search = false,
-  deep_reasoning = false
+  deep_reasoning = false,
+  continue_from_content = null,
+  signal = null  // AbortController的signal，用于中断请求
 }, onChunk, onMetadata, onError, onComplete) => {
   const requestBody = {
     query,
@@ -55,6 +58,9 @@ export const intelligentQuery = async ({
   if (user_id) {
     requestBody.user_id = user_id
   }
+  if (continue_from_content) {
+    requestBody.continue_from_content = continue_from_content
+  }
 
   try {
     const token = getToken()
@@ -64,7 +70,8 @@ export const intelligentQuery = async ({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal  // 传入signal以支持中断请求
     })
 
     if (!response.ok) {
@@ -473,6 +480,40 @@ export const clearConversationDocuments = async (conversationId) => {
   return await response.json()
 }
 
+/**
+ * 导出会话为可分享的文件
+ * @param {string} conversationId - 会话ID
+ * @param {Object} options - 导出选项
+ * @param {string} [options.format='txt'] - 导出格式: txt 或 markdown
+ * @param {boolean} [options.include_metadata=true] - 是否包含元数据
+ * @param {boolean} [options.include_references=false] - 是否包含文档引用
+ */
+export const exportConversation = async (conversationId, options = {}) => {
+  const token = getToken()
+  const { format = 'txt', include_metadata = true, include_references = false } = options
+
+  const requestBody = {
+    format,
+    include_metadata,
+    include_references
+  }
+
+  const response = await fetch(`/api/${INTELLIGENT_SEARCH_BASE_URL}/conversations/${conversationId}/export`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(requestBody)
+  })
+
+  if (!response.ok) {
+    throw new Error(`导出会话失败: ${response.status}`)
+  }
+
+  return await response.json()
+}
+
 export default {
   intelligentQuery,
   getConversations,
@@ -487,5 +528,6 @@ export default {
   setConversationDocuments,
   addConversationDocuments,
   removeConversationDocuments,
-  clearConversationDocuments
+  clearConversationDocuments,
+  exportConversation
 }

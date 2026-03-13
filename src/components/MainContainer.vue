@@ -17,14 +17,16 @@
       
       <!-- 底部聊天输入区域 -->
       <div class="app-main__chat-input" v-if="isChatPage">
-        <ChatInput 
+        <ChatInput
           @send-message="handleSendMessage"
           @upload-file="handleUploadFile"
           @model-change="handleModelChange"
           @new-chat="handleNewChat"
           @load-history="handleLoadHistory"
           @delete-history="handleDeleteHistory"
-          :current-model="chatPageRef?.value?.selectedModel"
+          @pause-generation="handlePauseGeneration"
+          :current-model="currentModel"
+          :is-generating="isGenerating"
         />
       </div>
     </div>
@@ -45,6 +47,21 @@ const chatPageRef = ref(null) // 直接引用ChatPage组件
 // 检查当前是否是聊天页面
 const isChatPage = computed(() => {
   return route.path === '/chat'
+})
+
+// 当前选中的模型
+const currentModel = computed(() => {
+  return chatPageRef.value?.selectedModel || 'deepseek'
+})
+
+// 用于传递给 ChatInput 的生成状态
+// Vue 会自动解包从 defineExpose 暴露的 ref，但我们需要在计算属性中访问它们
+const isGenerating = computed(() => {
+  return chatPageRef.value?.isGenerating || false
+})
+
+const isPaused = computed(() => {
+  return chatPageRef.value?.isPaused || false
 })
 
 // 处理发送消息事件
@@ -146,6 +163,17 @@ const handleDeleteHistory = (sessionId) => {
     }
   } catch (error) {
     console.error('删除历史会话时发生错误:', error)
+  }
+}
+
+// 处理暂停生成事件
+const handlePauseGeneration = () => {
+  try {
+    if (chatPageRef.value && typeof chatPageRef.value.handlePauseGeneration === 'function') {
+      chatPageRef.value.handlePauseGeneration()
+    }
+  } catch (error) {
+    console.error('暂停生成时发生错误:', error)
   }
 }
 </script>

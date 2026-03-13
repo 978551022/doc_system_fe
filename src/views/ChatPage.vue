@@ -108,6 +108,33 @@
                   <path d="M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </span>
+              <!-- 分享按钮 (仅AI消息) -->
+              <span
+                v-if="message.role === 'assistant'"
+                class="chat-message__action-btn"
+                @click="shareMessage(message)"
+                title="分享"
+              >
+                <svg class="action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="18" cy="5" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="6" cy="12" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="18" cy="19" r="3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M8.59 13.51L15.42 17.49" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M15.41 6.51L8.59 10.49" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <!-- 继续生成按钮 (仅在暂停时且是当前生成的AI消息时显示，放在最右侧) -->
+              <span
+                v-if="message.role === 'assistant' && message.isLastGenerating && isPaused"
+                class="chat-message__action-btn continue-generate-btn"
+                @click="continueGenerationFromMessage(message)"
+                title="继续生成"
+              >
+                <svg class="action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <polygon points="5,3 19,12 5,21" fill="currentColor"/>
+                </svg>
+                继续生成
+              </span>
             </div>
           </div>
         </div>
@@ -147,7 +174,7 @@ import { useRoute } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { uploadDocument, waitForDocumentProcessing } from '../api/document.js'
-import { intelligentQuery, getAvailableModels } from '../api/intelligentSearch.js'
+import { intelligentQuery, getAvailableModels, exportConversation } from '../api/intelligentSearch.js'
 import userState from '../utils/userStore.js'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
@@ -335,6 +362,226 @@ const selectedModel = ref('glm')
 // 控制是否可以发送新消息的状态
 const isSending = ref(false)
 
+// 暂停/继续生成相关状态
+const isGenerating = ref(false)  // 是否正在生成
+const isPaused = ref(false)      // 是否已暂停
+const currentAbortController = ref(null)  // 用于中断请求
+const lastUserQuery = ref('')    // 最后的用户问题（用于继续生成）
+const currentGeneratingMessage = ref(null)  // 当前正在生成的消息对象
+
+// 暂停生成 - 使用AbortController真正断开SSE连接
+const handlePauseGeneration = () => {
+  isPaused.value = true
+
+  // 中断当前的请求
+  if (currentAbortController.value) {
+    currentAbortController.value.abort()
+    currentAbortController.value = null
+  }
+
+  // 保持当前生成消息的标记为 true，以便显示"继续生成"按钮
+  if (currentGeneratingMessage.value) {
+    currentGeneratingMessage.value.isLastGenerating = true
+  }
+
+  isGenerating.value = false
+  ElMessage.info('已暂停生成')
+}
+
+// 从消息继续生成（点击消息操作栏的继续生成按钮）
+const continueGenerationFromMessage = async (message) => {
+  if (!currentSession.value.backendConversationId) {
+    ElMessage.warning('会话未保存，无法继续生成')
+    return
+  }
+
+  // 获取当前AI消息的纯文本内容用于续写
+  // 优先使用 rawContent，如果没有则从 HTML 中提取
+  let currentContent = ''
+
+  if (message.rawContent) {
+    // 使用原始内容，移除元数据标记
+    currentContent = message.rawContent
+    // 移除推理过程标记，只保留答案部分用于续写
+    const reasoningStartTag = '<推理过程>'
+    const reasoningEndTag = '</推理过程>'
+    const answerStartTag = '<最终答案>'
+
+    // 如果有推理标签，提取答案部分
+    if (currentContent.includes(reasoningStartTag) && currentContent.includes(reasoningEndTag)) {
+      const reasoningEnd = currentContent.indexOf(reasoningEndTag)
+      currentContent = currentContent.substring(reasoningEnd + reasoningEndTag.length)
+    } else if (currentContent.includes(reasoningStartTag)) {
+      // 只有开始标签，移除开始标签及之后的内容
+      const reasoningStart = currentContent.indexOf(reasoningStartTag)
+      currentContent = currentContent.substring(0, reasoningStart)
+    }
+
+    // 移除最终答案标签
+    if (currentContent.includes(answerStartTag)) {
+      const answerStart = currentContent.indexOf(answerStartTag)
+      currentContent = currentContent.substring(answerStart + answerStartTag.length)
+    }
+
+    // 清理元数据
+    currentContent = currentContent.replace(/^content=''?\s*$/gm, '')
+    currentContent = currentContent.replace(/^usage_metadata=\{[^}]*\}\s*/g, '')
+    currentContent = currentContent.replace(/^additional_kwargs=\{.*?\}\s*$/gm, '')
+    currentContent = currentContent.replace(/^response_metadata=\{.*?\}\s*$/gm, '')
+    currentContent = currentContent.replace(/^id='run-[^']*'\s*$/gm, '')
+    currentContent = currentContent.replace(/^name='[^']*'\s*$/gm, '')
+    currentContent = currentContent.trim()
+  } else {
+    // 没有 rawContent，从 HTML 中提取纯文本
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = message.content || ''
+    currentContent = tempDiv.textContent || tempDiv.innerText || ''
+  }
+
+  if (!currentContent) {
+    ElMessage.warning('没有可继续的内容')
+    return
+  }
+
+  // 发送续写请求
+  await doContinueGeneration(currentContent, message)
+}
+
+// 执行续写请求
+const doContinueGeneration = async (continueFromContent, targetMessage) => {
+  if (!lastUserQuery.value) {
+    ElMessage.warning('无法继续生成，请先发送一条消息')
+    return
+  }
+
+  try {
+    isGenerating.value = true
+    isPaused.value = false
+    isTyping.value = false
+
+    // 创建新的AbortController
+    currentAbortController.value = new AbortController()
+
+    // 使用目标消息继续生成
+    const assistantMessage = targetMessage
+    assistantMessage.isComplete = false
+    assistantMessage.isLastGenerating = true
+    currentGeneratingMessage.value = assistantMessage
+
+    const sessionRef = currentSession.value
+
+    const reasoningStartTime = Date.now()
+
+    let rawContent = continueFromContent
+
+    await intelligentQuery(
+      {
+        query: lastUserQuery.value,
+        conversation_id: sessionRef.backendConversationId,
+        mode: 'general',
+        model_name: selectedModel.value,
+        stream: true,
+        continue_from_content: continueFromContent,
+        signal: currentAbortController.value?.signal || null
+      },
+      // onChunk
+      (chunkContent) => {
+        if (chunkContent) {
+          rawContent += chunkContent
+          // 续写生成时不显示深度推理折叠内容
+          parseContentAndReasoning(assistantMessage, rawContent, false, false)
+          scrollToBottom(false)
+        }
+      },
+      // onMetadata
+      (metadata) => {
+        if (metadata.conversation_id) {
+          sessionRef.backendConversationId = metadata.conversation_id
+        }
+      },
+      // onError
+      (error) => {
+        console.error('[续写生成] 错误:', error)
+        ElMessage.error(`续写生成失败: ${error}`)
+        assistantMessage.isLastGenerating = false
+        currentGeneratingMessage.value = null
+      },
+      // onComplete
+      () => {
+        assistantMessage.isComplete = true
+        assistantMessage.isLastGenerating = false
+        currentGeneratingMessage.value = null
+        isGenerating.value = false
+        isPaused.value = false
+        parseMarkdown(assistantMessage)
+      }
+    )
+
+  } catch (error) {
+    // 如果是用户主动中止的请求（如暂停生成），静默处理
+    if (error.name === 'AbortError') {
+      console.warn('[续写生成] 用户中止:', error.message)
+      // 保持 isLastGenerating 为 true 以显示继续生成按钮
+      isPaused.value = true
+      if (targetMessage) {
+        targetMessage.isLastGenerating = true
+      }
+      isGenerating.value = false
+      currentGeneratingMessage.value = null
+      return
+    }
+
+    console.error('[续写生成] 失败:', error)
+    ElMessage.error(`续写生成失败: ${error.message || error}`)
+    // 非中止错误才清除标记
+    if (targetMessage) {
+      targetMessage.isLastGenerating = false
+    }
+    isGenerating.value = false
+    isPaused.value = false
+    currentGeneratingMessage.value = null
+  }
+}
+
+// 分享消息（导出会话为可分享链接）
+const shareMessage = async (message) => {
+  if (!currentSession.value.backendConversationId) {
+    ElMessage.warning('会话未保存，无法分享')
+    return
+  }
+
+  try {
+    ElMessage.info('正在生成分享链接...')
+
+    const result = await exportConversation(
+      currentSession.value.backendConversationId,
+      { format: 'txt', include_metadata: true, include_references: false }
+    )
+
+    if (result && result.download_url) {
+      // 复制分享链接到剪贴板
+      navigator.clipboard.writeText(result.download_url).then(() => {
+        ElMessage.success({
+          message: '分享链接已复制到剪贴板！',
+          duration: 3000
+        })
+      }).catch(() => {
+        // 如果复制失败，显示链接让用户手动复制
+        ElMessage({
+          message: `分享链接: ${result.download_url}`,
+          duration: 5000,
+          type: 'info'
+        })
+      })
+    } else {
+      ElMessage.error('生成分享链接失败')
+    }
+  } catch (error) {
+    console.error('[分享消息] 失败:', error)
+    ElMessage.error(`分享失败: ${error.message || error}`)
+  }
+}
+
 // 发送消息方法（用于接收来自ChatInput的消息）
 const sendMessage = async (data) => {
   const { content, files, onlineSearch, deepReasoning } = data
@@ -475,13 +722,21 @@ const sendMessage = async (data) => {
 
   // 添加到当前会话的消息列表
   currentSession.value.messages.push(userMessage)
-  scrollToBottom()
+  scrollToBottom(false, true)  // 发送消息后强制滚动到底部
 
   const sessionRef = currentSession.value
 
   try {
     // 显示加载状态
     isTyping.value = true
+    isGenerating.value = true
+    isPaused.value = false
+
+    // 创建新的AbortController用于中断请求
+    currentAbortController.value = new AbortController()
+
+    // 保存用户查询（用于继续生成）
+    lastUserQuery.value = messageContent
 
     // 获取当前会话存储的文档ID（用于后续查询复用）
     const sessionDocIds = sessionRef.documentIds || []
@@ -558,9 +813,13 @@ const sendMessage = async (data) => {
         reasoningStartTime: reasoningStartTime,
         reasoningDuration: null, // 推理耗时
         isComplete: false, // 标记是否渲染完成
+        isLastGenerating: true, // 标记为当前正在生成的消息
         tokens: null,
         time: new Date().toLocaleTimeString()
       })
+
+      // 设置当前正在生成的消息
+      currentGeneratingMessage.value = assistantMessage
 
       // 临时存储原始内容用于解析
       let rawContent = ''
@@ -588,7 +847,8 @@ const sendMessage = async (data) => {
           model_name: selectedModel.value,
           stream: true,
           online_search: !!onlineSearch,
-          deep_reasoning: !!deepReasoning
+          deep_reasoning: !!deepReasoning,
+          signal: currentAbortController.value?.signal || null
         },
         // onChunk - 接收内容片段（实现逐字流畅渲染）
         (chunkContent) => {
@@ -598,8 +858,8 @@ const sendMessage = async (data) => {
           if (chunkContent) {
             // 逐字累加内容
             rawContent += chunkContent
-            // 传递推理开始时间，用于计算耗时
-            parseContentAndReasoning(assistantMessage, rawContent, deepReasoning ? reasoningStartTime : null)
+            // 传递推理开始时间，用于计算耗时；传递 deepReasoning 参数以决定是否折叠显示推理内容
+            parseContentAndReasoning(assistantMessage, rawContent, deepReasoning ? reasoningStartTime : null, deepReasoning)
             scrollToBottom(false)
           }
         },
@@ -622,11 +882,19 @@ const sendMessage = async (data) => {
           if (errorMsg) {
             assistantMessage.content += `\n\n[错误] ${errorMsg}`
           }
+          // 重置生成状态
+          isGenerating.value = false
+          isPaused.value = false
         },
         // onComplete - 渲染完成
         () => {
           assistantMessage.isComplete = true
+          assistantMessage.isLastGenerating = false
           parseMarkdown(assistantMessage)
+          // 重置生成状态
+          isGenerating.value = false
+          isPaused.value = false
+          currentGeneratingMessage.value = null
         }
       )
 
@@ -648,10 +916,23 @@ const sendMessage = async (data) => {
 
     scrollToBottom()
   } catch (error) {
+    // 如果是用户主动中止的请求（如暂停生成），静默处理
+    if (error.name === 'AbortError') {
+      console.warn('[用户中止] 请求已被用户取消:', error.message)
+      // 重置状态但不显示错误
+      isTyping.value = false
+      isGenerating.value = false
+      isPaused.value = true
+      return
+    }
+
     console.error('处理消息失败:', error)
 
     // 隐藏加载状态
     isTyping.value = false
+    // 重置生成状态
+    isGenerating.value = false
+    isPaused.value = false
 
     // 错误提示
     let errorMsg = '抱歉，处理请求时出现错误，请稍后重试。'
@@ -696,7 +977,7 @@ const handleUploadFile = (file) => {
 }
 
 // 解析内容和推理过程，分离显示（流式渲染时调用）
-const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null) => {
+const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null, deepReasoning = false) => {
   // 保存原始内容 - 确保是字符串类型
   const rawContentStr = String(rawContent || '')
   message.rawContent = rawContentStr
@@ -732,7 +1013,8 @@ const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null
   let reasoningText = ''
   let wasReasoningCompleted = false
 
-  if (cleanContent.includes(reasoningStartTag)) {
+  // 只有当 deepReasoning 为 true 时，才将推理内容分离显示为折叠内容
+  if (deepReasoning && cleanContent.includes(reasoningStartTag)) {
     const reasoningStart = cleanContent.indexOf(reasoningStartTag)
     const reasoningEnd = cleanContent.indexOf(reasoningEndTag)
 
@@ -755,10 +1037,46 @@ const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null
       message.reasoningRawContent = cleanContent.substring(reasoningStart + reasoningStartTag.length)
       cleanContent = cleanContent.substring(0, reasoningStart)
     }
+  } else if (cleanContent.includes(reasoningStartTag) || cleanContent.includes(answerStartTag)) {
+    // deepReasoning 为 false，但内容中包含推理标签
+    // 移除推理标签，将推理内容合并到主内容中
+    if (cleanContent.includes(reasoningStartTag)) {
+      const reasoningStart = cleanContent.indexOf(reasoningStartTag)
+      const reasoningEnd = cleanContent.indexOf(reasoningEndTag)
+
+      if (reasoningEnd !== -1) {
+        // 有完整的推理标签，移除标签但保留内容
+        const beforeReasoning = cleanContent.substring(0, reasoningStart)
+        const afterReasoning = cleanContent.substring(reasoningEnd + reasoningEndTag.length)
+        cleanContent = beforeReasoning + cleanContent.substring(reasoningStart + reasoningStartTag.length, reasoningEnd) + afterReasoning
+      } else {
+        // 只有开始标签，移除开始标签
+        cleanContent = cleanContent.substring(0, reasoningStart) + cleanContent.substring(reasoningStart + reasoningStartTag.length)
+      }
+    }
+
+    // 处理最终答案标签
+    if (cleanContent.includes(answerStartTag)) {
+      const answerStart = cleanContent.indexOf(answerStartTag)
+      const answerEnd = cleanContent.indexOf(answerEndTag)
+
+      if (answerEnd !== -1) {
+        cleanContent = cleanContent.substring(0, answerStart) + cleanContent.substring(answerStart + answerStartTag.length, answerEnd) + cleanContent.substring(answerEnd + answerEndTag.length)
+      } else {
+        cleanContent = cleanContent.substring(0, answerStart) + cleanContent.substring(answerStart + answerStartTag.length)
+      }
+    }
+
+    // 清除推理相关的消息属性
+    message.reasoningRawContent = ''
+    message.reasoningContent = ''
+    message.reasoningHtml = ''
+    message.reasoningCompleted = false
+    message.reasoningDuration = ''
   }
 
-  // 处理最终答案标记
-  if (cleanContent.includes(answerStartTag)) {
+  // 处理最终答案标记（deepReasoning 为 true 时）
+  if (deepReasoning && cleanContent.includes(answerStartTag)) {
     const answerStart = cleanContent.indexOf(answerStartTag)
     const answerEnd = cleanContent.indexOf(answerEndTag)
 
@@ -769,8 +1087,8 @@ const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null
     }
   }
 
-  // 保存推理过程内容并转换为HTML
-  const reasoningRawText = reasoningText || message.reasoningRawContent || ''
+  // 保存推理过程内容并转换为HTML（仅当 deepReasoning 为 true 时）
+  const reasoningRawText = deepReasoning ? (reasoningText || message.reasoningRawContent || '') : ''
   message.reasoningContent = reasoningRawText
 
   // 将推理内容转换为HTML渲染
@@ -898,10 +1216,24 @@ const retryMessage = async (message) => {
     return
   }
 
+  // 从localStorage读取当前开关状态
+  let onlineSearch = false
+  let deepReasoning = false
+  try {
+    const raw = localStorage.getItem('chatConfig')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      onlineSearch = !!parsed.isInternetSearchEnabled
+      deepReasoning = !!parsed.isDeepReasoningEnabled
+    }
+  } catch (error) {
+    console.error('读取配置失败:', error)
+  }
+
   if (message.role === 'user') {
     // 用户消息：重新发送
     let content = message.content.trim()
-    sendMessage({ content, files: [], onlineSearch: false, deepReasoning: false })
+    sendMessage({ content, files: [], onlineSearch, deepReasoning })
   } else {
     // AI消息：重新生成（找到对应的用户消息）
     const session = currentSession.value
@@ -913,9 +1245,9 @@ const retryMessage = async (message) => {
       if (userMessage.role === 'user') {
         // 删除当前AI消息
         session.messages.splice(index, 1)
-        // 重新发送用户消息
+        // 重新发送用户消息（使用当前开关状态）
         let content = userMessage.content.trim()
-        sendMessage({ content, files: [], onlineSearch: false, deepReasoning: false })
+        sendMessage({ content, files: [], onlineSearch, deepReasoning })
       }
     }
   }
@@ -945,10 +1277,21 @@ const deleteMessage = (messageId) => {
 }
 
 // 滚动到底部（智能版：如果用户在底部附近则自动滚动，否则不打扰用户）
-const scrollToBottom = (smooth = true) => {
+// @param smooth - 是否平滑滚动
+// @param force - 是否强制滚动（忽略用户位置，用于发送消息、重试等操作）
+const scrollToBottom = (smooth = true, force = false) => {
   nextTick(() => {
     const container = messagesContainer.value
     if (container) {
+      // 强制滚动时直接滚动到底部
+      if (force) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: smooth ? 'smooth' : 'auto'
+        })
+        return
+      }
+
       // 检测用户当前是否在底部附近（100px以内）
       const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
       const isUserNearBottom = distanceFromBottom < 100
@@ -984,12 +1327,22 @@ const createNewSession = () => {
     createdAt: new Date().toISOString(),
     documentIds: [] // 新会话初始化空的文档ID数组
   }
-  
+
   chatSessions.value.unshift(newSession)
   currentSessionId.value = newSessionId
-  
+
+  // 重置深度推理和联网搜索开关状态为默认关闭
+  try {
+    localStorage.setItem('chatConfig', JSON.stringify({
+      isInternetSearchEnabled: false,
+      isDeepReasoningEnabled: false
+    }))
+  } catch (error) {
+    console.error('重置开关状态失败:', error)
+  }
+
   saveChatHistory()
-  
+
   return newSessionId
 }
 
@@ -997,7 +1350,7 @@ const createNewSession = () => {
 const switchSession = (sessionId) => {
   currentSessionId.value = sessionId
   saveChatHistory()
-  scrollToBottom()
+  scrollToBottom(false, true)  // 切换会话时强制滚动到底部
 }
 
 // 删除会话
@@ -1161,7 +1514,11 @@ defineExpose({
   deleteSession,
   chatSessions,
   currentSessionId,
-  selectedModel
+  selectedModel,
+  isGenerating,  // 直接暴露 ref 对象
+  isPaused,      // 直接暴露 ref 对象
+  handlePauseGeneration,
+  continueGenerationFromMessage
 })
 </script>
 
@@ -2000,5 +2357,39 @@ defineExpose({
   border-radius: 4px;
   background-color: var(--surface-color);
   margin-left: 4px;
+}
+
+/* 继续生成按钮样式（在消息操作栏中） */
+.continue-generate-btn {
+  color: #10b981 !important;
+  background-color: rgba(16, 185, 129, 0.1);
+  padding: 4px 10px !important;
+  border-radius: 4px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  transition: var(--transition-fast);
+}
+
+.continue-generate-btn:hover {
+  color: #059669 !important;
+  background-color: rgba(16, 185, 129, 0.2) !important;
+}
+
+.continue-generate-btn .action-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.dark-theme .continue-generate-btn {
+  color: #34d399 !important;
+  background-color: rgba(52, 211, 153, 0.15);
+}
+
+.dark-theme .continue-generate-btn:hover {
+  color: #6ee7b7 !important;
+  background-color: rgba(52, 211, 153, 0.25) !important;
 }
 </style>
