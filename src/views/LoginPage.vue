@@ -1,23 +1,24 @@
 <template>
-  <div class="login-page">
-    <div class="login-container">
-      <div class="login-header">
-        <div class="login-logo">
-          <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="4" y="6" width="24" height="20" rx="3" fill="currentColor" opacity="0.2"/>
-            <rect x="7" y="9" width="18" height="14" rx="2" fill="currentColor"/>
-            <path d="M10 14h12M10 18h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
-          </svg>
+  <el-config-provider :locale="zhCn" namespace="el">
+    <div class="login-page">
+      <div class="login-container">
+        <div class="login-header">
+          <div class="login-logo">
+            <svg width="48" height="48" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="6" width="24" height="20" rx="3" fill="currentColor" opacity="0.2"/>
+              <rect x="7" y="9" width="18" height="14" rx="2" fill="currentColor"/>
+              <path d="M10 14h12M10 18h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h1 class="login-title">DocHub</h1>
+          <p class="login-subtitle">智能文档系统</p>
         </div>
-        <h1 class="login-title">DocHub</h1>
-        <p class="login-subtitle">智能文档系统</p>
-      </div>
 
-      <div class="login-card">
-        <div class="login-tabs">
-          <button
-            :class="['login-tab', { active: activeTab === 'password' }]"
-            @click="activeTab = 'password'"
+        <div class="login-card">
+          <div class="login-tabs">
+            <button
+              :class="['login-tab', { active: activeTab === 'password' }]"
+              @click="activeTab = 'password'"
           >
             <i class="el-icon-lock"></i>
             密码登录
@@ -47,9 +48,10 @@
                 placeholder="请输入手机号/邮箱/用户名"
                 size="large"
                 :trigger-on-focus="true"
-                :highlight-first-item="true"
+                :highlight-first-item="false"
                 :debounce="200"
                 :popper-class="passwordAutocompleteClass"
+                :teleported="false"
                 @select="handleSelectPasswordAccount"
                 style="width: 100%"
               >
@@ -102,9 +104,10 @@
                 placeholder="请输入手机号"
                 size="large"
                 :trigger-on-focus="true"
-                :highlight-first-item="true"
+                :highlight-first-item="false"
                 :debounce="200"
                 :popper-class="smsAutocompleteClass"
+                :teleported="false"
                 @select="handleSelectSmsAccount"
                 style="width: 100%"
               >
@@ -201,13 +204,15 @@
       </el-dialog>
     </div>
   </div>
+  </el-config-provider>
 </template>
 
 <script setup>
-import { ref, reactive, onUnmounted, computed, watch, onMounted } from 'vue'
+import { ref, reactive, onUnmounted, computed, watch, onMounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Loading, User, Iphone } from '@element-plus/icons-vue'
+import zhCn from 'element-plus/es/locale/lang/zh-cn.mjs'
 import { passwordLogin, smsLogin, guestLogin, sendVerificationCode, getWechatQrCodeUrl } from '../api/auth.js'
 import { login } from '../utils/userStore.js'
 
@@ -229,17 +234,17 @@ const checkDarkMode = () => {
   isDarkMode.value = document.body.classList.contains('dark-theme')
 }
 
-// 动态popper类名（返回字符串，Element Plus的popper-class需要字符串）
+// 动态popper类名
 const passwordAutocompleteClass = computed(() => {
-  const baseClass = 'login-autocomplete-popper'
-  const isDark = document.body.classList.contains('dark-theme')
-  return isDark ? `${baseClass} login-autocomplete-dark` : baseClass
+  return isDarkMode.value
+    ? 'login-autocomplete-popper login-autocomplete-dark'
+    : 'login-autocomplete-popper'
 })
 
 const smsAutocompleteClass = computed(() => {
-  const baseClass = 'login-autocomplete-popper'
-  const isDark = document.body.classList.contains('dark-theme')
-  return isDark ? `${baseClass} login-autocomplete-dark` : baseClass
+  return isDarkMode.value
+    ? 'login-autocomplete-popper login-autocomplete-dark'
+    : 'login-autocomplete-popper'
 })
 
 // 监听body类名变化
@@ -248,7 +253,6 @@ const observeDarkMode = () => {
     mutations.forEach((mutation) => {
       if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
         checkDarkMode()
-        updatePopperTheme()
       }
     })
   })
@@ -259,24 +263,55 @@ const observeDarkMode = () => {
   return observer
 }
 
-// 更新popper主题样式
-const updatePopperTheme = () => {
-  const isDark = document.body.classList.contains('dark-theme')
-  const poppers = document.querySelectorAll('.login-autocomplete-popper')
-  poppers.forEach((popper) => {
-    if (isDark) {
-      popper.classList.add('login-autocomplete-dark')
-    } else {
-      popper.classList.remove('login-autocomplete-dark')
-    }
-  })
-}
-
 onMounted(() => {
   checkDarkMode()
   const observer = observeDarkMode()
+
+  // 强制修复 autocomplete 样式
+  const fixAutocompleteStyles = () => {
+    const isDark = document.body.classList.contains('dark-theme')
+    if (!isDark) return
+
+    // 查找所有 autocomplete 下拉菜单
+    const dropdowns = document.querySelectorAll('.el-autocomplete-suggestion__wrap')
+    dropdowns.forEach(dropdown => {
+      dropdown.style.backgroundColor = '#1e293b'
+
+      // 修复所有列表项
+      const items = dropdown.querySelectorAll('.el-autocomplete-suggestion__item')
+      items.forEach(item => {
+        item.style.backgroundColor = '#1e293b'
+        item.style.color = '#f1f5f9'
+
+        // 添加鼠标悬停事件
+        item.addEventListener('mouseenter', () => {
+          if (document.body.classList.contains('dark-theme')) {
+            item.style.setProperty('background', '#2d3748', 'important')
+          }
+        })
+
+        item.addEventListener('mouseleave', () => {
+          if (document.body.classList.contains('dark-theme')) {
+            item.style.setProperty('background', '#1e293b', 'important')
+          }
+        })
+      })
+    })
+
+    // 修复箭头
+    const arrows = document.querySelectorAll('.popper__arrow')
+    arrows.forEach(arrow => {
+      arrow.style.setProperty('border-top-color', '#334155', 'important')
+      arrow.style.setProperty('background', '#1e293b', 'important')
+    })
+  }
+
+  // 定期检查并修复样式
+  const styleFixInterval = setInterval(fixAutocompleteStyles, 500)
+
   onUnmounted(() => {
     observer.disconnect()
+    clearInterval(styleFixInterval)
   })
 })
 
@@ -909,12 +944,80 @@ onUnmounted(() => {
 .dark-theme .account-suggestion span {
   color: #f1f5f9;
 }
+
+/* 深色模式下的 autocomplete 下拉菜单样式 */
+:deep(.dark-theme) .login-autocomplete-popper {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+:deep(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__wrap {
+  background: #1e293b !important;
+}
+
+:deep(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__list {
+  background: #1e293b !important;
+}
+
+:deep(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__item {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-bottom-color: #334155 !important;
+}
+
+:deep(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__item:hover {
+  background: #2d3748 !important;
+  color: #f1f5f9 !important;
+}
+
+:deep(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted {
+  background: #2d3748 !important;
+  color: #f1f5f9 !important;
+}
+
+:deep(.dark-theme) .login-autocomplete-popper .popper__arrow {
+  border-top-color: #334155 !important;
+  background: #1e293b !important;
+}
+
 </style>
 
 <!-- 非scoped样式：用于自动完成下拉框 -->
 <style>
-/* ==================== 浅色模式样式（默认） ==================== */
-.login-autocomplete-popper.el-popper,
+/* 覆盖 Element Plus 的 CSS 变量 - 深色模式 */
+body.dark-theme {
+  --el-bg-color: #1e293b;
+  --el-bg-color-overlay: #1e293b;
+  --el-fill-color-blank: #1e293b;
+  --el-fill-color-light: #2d3748;
+  --el-fill-color-lighter: #334155;
+  --el-text-color-primary: #f1f5f9;
+  --el-text-color-regular: #f1f5f9;
+  --el-border-color: #334155;
+  --el-border-color-light: #334155;
+}
+
+/* 强制覆盖 Element Plus autocomplete 的默认样式 */
+body.dark-theme .el-autocomplete-suggestion__wrap {
+  background-color: #1e293b !important;
+}
+
+body.dark-theme .el-autocomplete-suggestion__list {
+  background-color: #1e293b !important;
+}
+
+body.dark-theme .el-autocomplete-suggestion__item {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
+body.dark-theme .el-autocomplete-suggestion__item:hover,
+body.dark-theme .el-autocomplete-suggestion__item.highlighted {
+  background-color: #2d3748 !important;
+  color: #f1f5f9 !important;
+}
+
+/* ==================== 基础样式（浅色模式默认） ==================== */
 .login-autocomplete-popper {
   background: #ffffff !important;
   border: 1px solid #e2e8f0 !important;
@@ -926,65 +1029,60 @@ onUnmounted(() => {
   min-width: 200px !important;
 }
 
-/* 内层容器 - 浅色模式 */
-.login-autocomplete-popper .el-autocomplete-suggestion,
-.login-autocomplete-popper .el-autocomplete-suggestion__wrap,
+.login-autocomplete-popper .el-autocomplete-suggestion__wrap {
+  background: #ffffff !important;
+  padding: 0 !important;
+  max-height: 200px;
+}
+
 .login-autocomplete-popper .el-autocomplete-suggestion__list {
   background: #ffffff !important;
   padding: 0 !important;
 }
 
-.login-autocomplete-popper .el-autocomplete-suggestion__wrap {
-  max-height: 200px;
-}
-
-/* 列表项 - 浅色模式 */
-.login-autocomplete-popper .el-autocomplete-suggestion__item {
+/* 列表项 - 浅色模式（仅非深色模式生效） */
+body:not(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__item {
   padding: 10px 12px !important;
   margin: 0 !important;
-  border-radius: 0 !important;
   background: #ffffff !important;
   color: #1e293b !important;
   border-bottom: 1px solid #e2e8f0 !important;
-  transition: background-color 0.2s, color 0.2s !important;
+  transition: all 0.2s ease !important;
 }
 
-.login-autocomplete-popper .el-autocomplete-suggestion__item:last-child {
+body:not(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__item:last-child {
   border-bottom: none !important;
 }
 
 /* 账号建议内容样式 */
-.login-autocomplete-popper .account-suggestion {
+body:not(.dark-theme) .login-autocomplete-popper .account-suggestion {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.login-autocomplete-popper .account-suggestion i {
+body:not(.dark-theme) .login-autocomplete-popper .account-suggestion i {
   color: #4f46e5;
   font-size: 14px;
   opacity: 0.7;
 }
 
-.login-autocomplete-popper .account-suggestion span {
+body:not(.dark-theme) .login-autocomplete-popper .account-suggestion span {
   font-size: 14px;
-  color: #1e293b !important;
+  color: #1e293b;
 }
 
 /* 浅色模式悬停 */
-.login-autocomplete-popper .el-autocomplete-suggestion__item:hover,
-.login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted {
+body:not(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__item:hover {
   background: #4f46e5 !important;
   color: #ffffff !important;
 }
 
-.login-autocomplete-popper .el-autocomplete-suggestion__item:hover .account-suggestion span,
-.login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted .account-suggestion span {
+body:not(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__item:hover .account-suggestion span {
   color: #ffffff !important;
 }
 
-.login-autocomplete-popper .el-autocomplete-suggestion__item:hover .account-suggestion i,
-.login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted .account-suggestion i {
+body:not(.dark-theme) .login-autocomplete-popper .el-autocomplete-suggestion__item:hover .account-suggestion i {
   color: #ffffff !important;
   opacity: 1;
 }
@@ -1008,12 +1106,12 @@ onUnmounted(() => {
   background: #94a3b8;
 }
 
-/* ==================== 深色模式样式（使用body.dark-theme级联） ==================== */
-/* 当body有dark-theme类时，所有autocomplete都应用深色样式 */
+/* ==================== 深色模式样式（最高优先级） ==================== */
 
-/* 外层容器 - 最高优先级 */
+/* 外层容器 - 深色模式 */
+body.dark-theme .login-autocomplete-popper,
 body.dark-theme .login-autocomplete-popper.el-popper,
-body.dark-theme .login-autocomplete-popper {
+body.dark-theme .login-autocomplete-popper[class] {
   background: #1e293b !important;
   border-color: #334155 !important;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
@@ -1022,61 +1120,92 @@ body.dark-theme .login-autocomplete-popper {
 /* 内层容器 - 深色模式 */
 body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion,
 body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__wrap,
-body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__list {
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__list,
+.login-autocomplete-dark .el-autocomplete-suggestion,
+.login-autocomplete-dark .el-autocomplete-suggestion__wrap,
+.login-autocomplete-dark .el-autocomplete-suggestion__list {
   background: #1e293b !important;
 }
 
-/* 列表项 - 默认状态（深色模式）- 覆盖所有可能的样式 */
+/* 列表项 - 深色模式（强制所有状态使用深色背景） */
 body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item,
-body.dark-theme .el-popper .login-autocomplete-popper .el-autocomplete-suggestion__item {
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item:hover,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.is-hovered,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__wrap .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__wrap .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item:hover,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__wrap .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item.highlighted,
+.login-autocomplete-dark .el-autocomplete-suggestion__item,
+.login-autocomplete-dark .el-autocomplete-suggestion__item:hover,
+.login-autocomplete-dark .el-autocomplete-suggestion__item.highlighted,
+.login-autocomplete-dark .el-autocomplete-suggestion__item.is-hovered,
+.login-autocomplete-dark .el-autocomplete-suggestion__wrap .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item,
+.login-autocomplete-dark .el-autocomplete-suggestion__wrap .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item:hover,
+.login-autocomplete-dark .el-autocomplete-suggestion__wrap .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item.highlighted {
   background: #1e293b !important;
+  background-color: #1e293b !important;
   color: #f1f5f9 !important;
   border-bottom-color: #334155 !important;
 }
 
-/* 账号建议容器 */
-body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item .account-suggestion {
-  background: transparent !important;
-}
-
-/* 图标 */
-body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item .account-suggestion i,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item .account-suggestion i {
-  color: #a5b4fc !important;
-  opacity: 1;
-}
-
-/* 文字 */
-body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item .account-suggestion span,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item .account-suggestion span {
+/* 深色模式 - 额外加强悬停样式覆盖 - 使用更高优先级 */
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item:hover,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__wrap .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item:hover,
+.login-autocomplete-dark .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item:hover,
+.login-autocomplete-dark .el-autocomplete-suggestion__wrap .el-autocomplete-suggestion__list .el-autocomplete-suggestion__item:hover,
+body.dark-theme .login-autocomplete-popper div[style*="background"]:hover,
+body.dark-theme .login-autocomplete-popper li[style*="background"]:hover {
+  background: #2d3748 !important;
+  background-color: #2d3748 !important;
   color: #f1f5f9 !important;
 }
 
-/* 悬停/选中状态（深色模式）- 覆盖所有可能的样式 */
-body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item:hover,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item:hover,
-body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item.highlighted,
-body.dark-theme .el-popper .login-autocomplete-popper .el-autocomplete-suggestion__item:hover,
-body.dark-theme .el-popper .login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted {
-  background: #334155 !important;
-  color: #ffffff !important;
+/* 深色模式 popper 箭头 - 使用所有可能的伪元素 */
+body.dark-theme .login-autocomplete-popper .popper__arrow,
+body.dark-theme .login-autocomplete-popper .popper__arrow::before,
+body.dark-theme .login-autocomplete-popper .popper__arrow::after,
+.login-autocomplete-dark .popper__arrow,
+.login-autocomplete-dark .popper__arrow::before,
+.login-autocomplete-dark .popper__arrow::after,
+body.dark-theme .login-autocomplete-popper[data-popper-placement] .popper__arrow {
+  border-top-color: #334155 !important;
+  border-bottom-color: #334155 !important;
+  background: #1e293b !important;
+  background-color: #1e293b !important;
 }
 
-body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item:hover .account-suggestion span,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item:hover .account-suggestion span,
-body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted .account-suggestion span,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item.highlighted .account-suggestion span {
-  color: #ffffff !important;
+/* 账号建议容器 */
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item .account-suggestion,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item:hover .account-suggestion,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted .account-suggestion,
+.login-autocomplete-dark .el-autocomplete-suggestion__item .account-suggestion,
+.login-autocomplete-dark .el-autocomplete-suggestion__item:hover .account-suggestion,
+.login-autocomplete-dark .el-autocomplete-suggestion__item.highlighted .account-suggestion {
+  background: transparent !important;
 }
 
+/* 图标 - 深色模式 */
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item .account-suggestion i,
 body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item:hover .account-suggestion i,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item:hover .account-suggestion i,
 body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted .account-suggestion i,
-body.dark-theme .login-autocomplete-popper.el-popper .el-autocomplete-suggestion__item.highlighted .account-suggestion i {
-  color: #c7d2fe !important;
-  opacity: 1;
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.is-hovered .account-suggestion i,
+.login-autocomplete-dark .el-autocomplete-suggestion__item .account-suggestion i,
+.login-autocomplete-dark .el-autocomplete-suggestion__item:hover .account-suggestion i,
+.login-autocomplete-dark .el-autocomplete-suggestion__item.highlighted .account-suggestion i,
+.login-autocomplete-dark .el-autocomplete-suggestion__item.is-hovered .account-suggestion i {
+  color: #a5b4fc !important;
+}
+
+/* 文字 - 深色模式 */
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item .account-suggestion span,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item:hover .account-suggestion span,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.highlighted .account-suggestion span,
+body.dark-theme .login-autocomplete-popper .el-autocomplete-suggestion__item.is-hovered .account-suggestion span,
+.login-autocomplete-dark .el-autocomplete-suggestion__item .account-suggestion span,
+.login-autocomplete-dark .el-autocomplete-suggestion__item:hover .account-suggestion span,
+.login-autocomplete-dark .el-autocomplete-suggestion__item.highlighted .account-suggestion span,
+.login-autocomplete-dark .el-autocomplete-suggestion__item.is-hovered .account-suggestion span {
+  color: #f1f5f9 !important;
 }
 
 /* 深色模式滚动条 */
