@@ -9,7 +9,7 @@
         v-for="message in messages"
         :key="message.id"
         :class="['chat-message', `chat-message--${message.role}`]"
-        v-show="message.content || message.reasoningContent || message.role === 'user'"
+        v-show="message.content || message.reasoningContent || message.role === 'user' || message.isPlaceholder"
       >
         <div class="chat-message__avatar">
           <!-- 用户头像：使用用户最新上传的头像 -->
@@ -51,14 +51,34 @@
                   {{ message.reasoningCompleted ? '已思考' : '思考中...' }}{{ message.reasoningDuration ? ` (${message.reasoningDuration})` : '' }}
                 </span>
               </div>
+              <!-- 推理内容存在时显示内容 -->
               <div v-if="message.reasoningHtml" v-show="message.reasoningExpanded" class="ai-reasoning-content" v-html="message.reasoningHtml">
+              </div>
+              <!-- 推理内容未返回时显示加载动效 -->
+              <div v-else-if="message.isReasoning && !message.reasoningCompleted && !message.isPlaceholder" class="ai-reasoning-loading">
+                <div class="ai-loading-dots">
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                  <span class="dot"></span>
+                </div>
               </div>
               <!-- 分隔线 -->
               <div v-if="(message.reasoningHtml && (message.reasoningExpanded || message.reasoningCompleted)) || message.isReasoning" class="ai-divider"></div>
             </div>
 
+            <!-- 占位符：显示处理中状态 -->
+            <div v-if="message.isPlaceholder" class="ai-thinking-placeholder">
+              <!-- 统一使用脉动圆点动效，不显示文字 -->
+              <div class="ai-loading-dots">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+              </div>
+            </div>
+
             <!-- 消息内容：支持Markdown实时渲染 -->
             <div
+              v-if="!message.isPlaceholder || message.content"
               class="ai-message-content"
               v-html="message.content"
             ></div>
@@ -66,7 +86,39 @@
 
           <!-- 用户消息：保持原有气泡样式 -->
           <template v-else>
-            <div class="chat-message__text">{{ message.content }}</div>
+            <!-- 语音消息：微信风格语音气泡 -->
+            <div
+              v-if="message.isVoice"
+              class="voice-message"
+              :class="{ playing: playingVoiceMessageId === message.id, uploading: message.isUploading && !message.uploadId }"
+              @click="message.uploadId && playVoiceMessage(message)"
+            >
+              <div class="voice-message__content">
+                <!-- 上传中但没有uploadId时显示加载图标 -->
+                <div v-if="message.isUploading && !message.uploadId" class="voice-message__uploading">
+                  <i class="el-icon-loading"></i>
+                </div>
+                <!-- 有uploadId或上传完成时显示录音时长 -->
+                <div v-else class="voice-message__duration">
+                  {{ formatVoiceDuration(message.voiceDuration) }}
+                </div>
+              </div>
+              <!-- 语音图标 -->
+              <svg class="voice-message__icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+              </svg>
+              <!-- 播放波形动画 -->
+              <div v-if="playingVoiceMessageId === message.id" class="voice-message__wave">
+                <span class="voice-message__wave-bar"></span>
+                <span class="voice-message__wave-bar"></span>
+                <span class="voice-message__wave-bar"></span>
+                <span class="voice-message__wave-bar"></span>
+                <span class="voice-message__wave-bar"></span>
+              </div>
+            </div>
+            <!-- 普通文字消息 -->
+            <div v-else class="chat-message__text">{{ message.content }}</div>
           </template>
 
           <!-- 消息元信息 -->
@@ -106,6 +158,23 @@
                   <path d="M3 6H5H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   <path d="M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <!-- 播报按钮 (仅AI消息) -->
+              <span
+                v-if="message.role === 'assistant'"
+                class="chat-message__action-btn"
+                @click="toggleSpeak(message)"
+                :title="speakingMessageId === message.id ? '停止播报' : '播报'"
+              >
+                <svg v-if="speakingMessageId === message.id" class="action-icon speaking-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="6" y="6" width="12" height="12" rx="1" fill="currentColor"/>
+                </svg>
+                <svg v-else class="action-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <polygon points="11,5 6,9 6,19 11,23 11,5" fill="currentColor"/>
+                  <path d="M12,11L12,17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M15,8L15,20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  <path d="M18,12L18,16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>
               </span>
               <!-- 分享按钮 (仅AI消息) -->
@@ -162,6 +231,9 @@
           </div>
         </div>
       </div>
+
+      <!-- 录音波形显示区域 - 在消息列表底部，不覆盖消息 -->
+      <canvas v-if="isRecording" ref="waveformCanvas" class="voice-waveform-canvas"></canvas>
       <!-- 内容包装器结束 -->
       </div>
     </div>
@@ -173,7 +245,7 @@ import { ref, computed, onMounted, nextTick, watch, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { uploadDocument, waitForDocumentProcessing } from '../api/document.js'
+import { uploadDocument } from '../api/document.js'
 import { intelligentQuery, getAvailableModels, exportConversation } from '../api/intelligentSearch.js'
 import userState from '../utils/userStore.js'
 import { marked } from 'marked'
@@ -383,7 +455,24 @@ const isGenerating = ref(false)  // 是否正在生成
 const isPaused = ref(false)      // 是否已暂停
 const currentAbortController = ref(null)  // 用于中断请求
 const lastUserQuery = ref('')    // 最后的用户问题（用于继续生成）
+const lastOnlineSearch = ref(false)  // 最后的联网搜索状态（用于继续生成）
+const lastDeepReasoning = ref(false)  // 最后的深度推理状态（用于继续生成）
 const currentGeneratingMessage = ref(null)  // 当前正在生成的消息对象
+
+// 语音播报相关状态
+const speakingMessageId = ref(null)  // 当前正在播报的消息ID
+const speechUtterance = ref(null)    // 当前语音合成实例
+
+// 录音波形相关状态
+const isRecording = ref(false)       // 是否正在录音
+const waveformCanvas = ref(null)     // 波形canvas引用
+let waveformAnimationId = null       // 波形动画ID
+let waveformData = null              // 波形数据
+
+// 用户语音消息播放状态
+const playingVoiceMessageId = ref(null)  // 当前正在播放的用户语音消息ID
+let voiceAudio = null                    // Audio对象
+let voiceAnimationId = null              // 语音播放动画ID
 
 // 暂停生成 - 使用AbortController真正断开SSE连接
 const handlePauseGeneration = () => {
@@ -411,21 +500,57 @@ const continueGenerationFromMessage = async (message) => {
   }
 
   // 获取当前AI消息的纯文本内容用于续写
-  // 优先使用 rawContent，如果没有则从 HTML 中提取
   let currentContent = ''
 
   if (message.rawContent) {
-    // 使用原始内容，保留完整内容用于续写（包括推理标签，让后端处理）
+    // 使用原始内容
     currentContent = message.rawContent
 
-    // 清理元数据（但保留推理标签）
+    // 清理元数据
     currentContent = currentContent.replace(/^content=''?\s*$/gm, '')
     currentContent = currentContent.replace(/^usage_metadata=\{[^}]*\}\s*/g, '')
     currentContent = currentContent.replace(/^additional_kwargs=\{.*?\}\s*$/gm, '')
     currentContent = currentContent.replace(/^response_metadata=\{.*?\}\s*$/gm, '')
     currentContent = currentContent.replace(/^id='run-[^']*'\s*$/gm, '')
     currentContent = currentContent.replace(/^name='[^']*'\s*$/gm, '')
+
+    // 保存清理后的原始内容，以便移除推理标签后为空时使用
+    const cleanedContent = currentContent
+
+    // 重要：移除推理标签！续传时后端不需要推理标签
+    // 推理标签只在初始请求时使用，续传时只发送已生成的答案内容
+    const reasoningStartTag = '<推理过程>'
+    const reasoningEndTag = '</推理过程>'
+    const answerStartTag = '<最终答案>'
+    const answerEndTag = '</最终答案>'
+
+    // 如果包含推理标签，只保留最终答案部分（不含标签）
+    if (currentContent.includes(answerStartTag)) {
+      const answerStart = currentContent.indexOf(answerStartTag)
+      const answerEnd = currentContent.indexOf(answerEndTag)
+      if (answerEnd !== -1) {
+        // 完整的最终答案标签
+        currentContent = currentContent.substring(answerStart + answerStartTag.length, answerEnd)
+      } else if (answerStart !== -1) {
+        // 只有开始标签，答案还没完成，提取从开始标签后的内容
+        currentContent = currentContent.substring(answerStart + answerStartTag.length)
+      }
+    } else if (currentContent.includes(reasoningStartTag)) {
+      // 只有推理标签，没有最终答案标签
+      const reasoningEnd = currentContent.indexOf(reasoningEndTag)
+      if (reasoningEnd !== -1) {
+        // 推理已完成，取推理之后的内容
+        currentContent = currentContent.substring(reasoningEnd + reasoningEndTag.length)
+      }
+      // 注意：如果推理还在进行中，直接使用原始内容续传
+    }
+
     currentContent = currentContent.trim()
+
+    // 如果清理后内容为空，使用清理后的原始内容进行续传
+    if (!currentContent) {
+      currentContent = cleanedContent.trim()
+    }
   } else {
     // 没有 rawContent，从 HTML 中提取纯文本
     const tempDiv = document.createElement('div')
@@ -438,8 +563,14 @@ const continueGenerationFromMessage = async (message) => {
     return
   }
 
-  // 发送续写请求，使用完整的 rawContent（后端会处理推理标签）
-  await doContinueGeneration(currentContent, message)
+  // 检查是否是语音生成（通过消息对象中的标记判断）
+  if (message.isVoiceGeneration || message.voiceUploadId) {
+    // 语音消息续传
+    await continueVoiceGeneration(message)
+  } else {
+    // 文字消息续传
+    await doContinueGeneration(currentContent, message)
+  }
 }
 
 // 执行续写请求
@@ -479,7 +610,12 @@ const doContinueGeneration = async (continueFromContent, targetMessage) => {
     const savedReasoningCompleted = assistantMessage.reasoningCompleted
     const savedReasoningDuration = assistantMessage.reasoningDuration
 
+    // 续传逻辑：后端收到 continue_from_content 后应该只返回新内容（增量）
+    // 我们需要将新内容追加到已生成内容后面
     let rawContent = continueFromContent
+
+    // 用于检测后端返回模式（只在第一个chunk时判断一次）
+    let detectedBackendMode = null  // 'incremental' 或 'full'
 
     await intelligentQuery(
       {
@@ -488,13 +624,40 @@ const doContinueGeneration = async (continueFromContent, targetMessage) => {
         mode: 'general',
         model_name: selectedModel.value,
         stream: true,
+        online_search: lastOnlineSearch.value,
+        deep_reasoning: lastDeepReasoning.value,
         continue_from_content: continueFromContent,
         signal: currentAbortController.value?.signal || null
       },
       // onChunk
       (chunkContent) => {
         if (chunkContent) {
-          rawContent += chunkContent
+          // 首次检测后端返回模式
+          if (detectedBackendMode === null) {
+            // 如果chunk内容完全包含continue_from_content作为前缀，且chunk明显更长
+            // 则说明后端返回的是完整内容
+            if (chunkContent.length > continueFromContent.length * 1.5 &&
+                chunkContent.startsWith(continueFromContent)) {
+              detectedBackendMode = 'full'
+            } else {
+              // 否则认为是增量模式
+              detectedBackendMode = 'incremental'
+            }
+          }
+
+          if (detectedBackendMode === 'full') {
+            // 完整内容模式：提取增量部分
+            if (chunkContent.length > continueFromContent.length &&
+                chunkContent.startsWith(continueFromContent)) {
+              const incrementalContent = chunkContent.substring(continueFromContent.length)
+              if (incrementalContent) {
+                rawContent += incrementalContent
+              }
+            }
+          } else {
+            // 增量模式：直接追加
+            rawContent += chunkContent
+          }
 
           // 检查当前内容状态
           const isInReasoning = rawContent.includes(reasoningStartTag) &&
@@ -640,6 +803,10 @@ const shareMessage = async (message) => {
 const sendMessage = async (data) => {
   const { content, files, onlineSearch, deepReasoning } = data
 
+  // 保存开关状态，用于断点续传时恢复
+  lastOnlineSearch.value = !!onlineSearch
+  lastDeepReasoning.value = !!deepReasoning
+
   // 允许只有文件上传而没有文本内容
   if (!content.trim() && (!files || files.length === 0)) return
 
@@ -706,16 +873,7 @@ const sendMessage = async (data) => {
         if (docId) {
           uploadedDocIds.push(docId)
           uploadedFileNames.push(file.name)
-
-          // 等待文档处理完成（静默处理，不显示单独提示）
-          try {
-            const processedDoc = await waitForDocumentProcessing(docId, 30000, 1000)
-            successCount++
-          } catch (waitError) {
-            console.error('等待文档处理超时:', waitError)
-            // 即使超时也算上传成功，只是处理可能未完成
-            successCount++
-          }
+          successCount++
         } else {
           console.error('无法从响应中提取文档ID，响应内容:', response)
           failCount++
@@ -736,15 +894,6 @@ const sendMessage = async (data) => {
       ElMessage.warning(`${successCount} 个文件处理成功，${failCount} 个失败`)
     } else if (failCount > 0 && successCount === 0) {
       ElMessage.error(`文件处理失败，请重试`)
-    }
-
-    // 将新上传的文档ID存储到当前会话中，供后续查询使用
-    if (uploadedDocIds.length > 0) {
-      const sessionRef = currentSession.value
-      if (!sessionRef.documentIds) {
-        sessionRef.documentIds = []
-      }
-      sessionRef.documentIds.push(...uploadedDocIds)
     }
   }
 
@@ -792,47 +941,7 @@ const sendMessage = async (data) => {
     // 保存用户查询（用于继续生成）
     lastUserQuery.value = messageContent
 
-    // 获取当前会话存储的文档ID（用于后续查询复用）
-    const sessionDocIds = sessionRef.documentIds || []
-    
-    // 判断是使用文档查询还是普通AI对话
-    // 条件：1. 本次上传了新文档 2. 会话中有存储的文档ID
-    const hasDocuments = uploadedDocIds.length > 0 || sessionDocIds.length > 0
-    const effectiveDocIds = uploadedDocIds.length > 0 ? uploadedDocIds : sessionDocIds
-    
-    if (hasDocuments && content.trim()) {
-      // ========== 文档查询模式 ==========
-
-      // 使用reactive创建助手消息对象
-      const assistantMessage = reactive({
-        id: Date.now() + 1,
-        role: 'assistant',
-        content: '',
-        time: new Date().toLocaleTimeString()
-      })
-
-      // 立即添加到消息列表
-      sessionRef.messages.push(assistantMessage)
-
-      // 使用最新上传的文档ID，或者会话中存储的最后一个文档ID
-      const docId = effectiveDocIds[effectiveDocIds.length - 1]
-      const query = content.trim()
-
-      // 调用流式查询API，传递联网搜索参数
-      await queryDocumentStream(docId, query, (extractedText) => {
-        // 当收到第一个chunk时，隐藏加载状态
-        if (isTyping.value) {
-          isTyping.value = false
-        }
-
-        // 直接追加提取好的文本
-        if (extractedText && extractedText.trim()) {
-          assistantMessage.content += extractedText
-          scrollToBottom(false)
-        }
-      }, onlineSearch)
-
-    } else if (uploadedDocIds.length > 0 && !content.trim()) {
+    if (uploadedDocIds.length > 0 && !content.trim()) {
       // ========== 只有文件上传，没有查询 ==========
       const assistantMessage = {
         id: Date.now() + 1,
@@ -884,18 +993,34 @@ const sendMessage = async (data) => {
       // 立即添加到消息列表
       sessionRef.messages.push(assistantMessage)
 
-      // 确定查询模式
+      // 确定查询模式（仅当次请求上传了新文件时才使用文档模式）
+      // - general: 无新文档上传，通用AI对话（包括后续问题）
+      // - document: 当次上传了新文档且无联网搜索，专注文档分析
+      // - hybrid: 当次上传了新文档且启用联网搜索，结合文档和联网
+      const hasNewDocuments = uploadedDocIds.length > 0
       let queryMode = 'general'
-      if (hasDocuments && effectiveDocIds && effectiveDocIds.length > 0) {
-        queryMode = 'document'
+      if (hasNewDocuments) {
+        queryMode = onlineSearch ? 'hybrid' : 'document'
       }
 
       // 调用后端智能查询API
+      // 仅当次上传了新文件时才传递文档参数
+      let docParam = {}
+      if (hasNewDocuments && uploadedDocIds.length > 0) {
+        if (uploadedDocIds.length === 1 && queryMode === 'document') {
+          // 单文档查询使用 document_id
+          docParam.document_id = uploadedDocIds[0]
+        } else {
+          // 多文档或hybrid模式使用 document_ids 数组
+          docParam.document_ids = uploadedDocIds
+        }
+      }
+
       const result = await intelligentQuery(
         {
           query: content.trim(),
           mode: queryMode,
-          document_id: queryMode === 'document' ? effectiveDocIds[effectiveDocIds.length - 1] : null,
+          ...docParam,
           conversation_id: sessionRef.backendConversationId,
           user_id: userState.userId || null,
           model_name: selectedModel.value,
@@ -973,10 +1098,19 @@ const sendMessage = async (data) => {
     // 如果是用户主动中止的请求（如暂停生成），静默处理
     if (error.name === 'AbortError') {
       console.warn('[用户中止] 请求已被用户取消:', error.message)
+      // 保存当前已生成的内容到消息对象，以便续传
+      if (assistantMessage && rawContent) {
+        assistantMessage.rawContent = rawContent
+      }
+      // 保持消息的 isLastGenerating 状态，以便显示"继续生成"按钮
+      if (assistantMessage) {
+        assistantMessage.isLastGenerating = true
+      }
       // 重置状态但不显示错误
       isTyping.value = false
       isGenerating.value = false
       isPaused.value = true
+      currentGeneratingMessage.value = null
       return
     }
 
@@ -1067,6 +1201,7 @@ const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null
   let reasoningText = ''
   let wasReasoningCompleted = false
 
+
   // 只有当 deepReasoning 为 true 时，才将推理内容分离显示为折叠内容
   if (deepReasoning && cleanContent.includes(reasoningStartTag)) {
     const reasoningStart = cleanContent.indexOf(reasoningStartTag)
@@ -1088,62 +1223,95 @@ const parseContentAndReasoning = (message, rawContent, reasoningStartTime = null
       // 推理完成，停止"思考中"状态
       message.isReasoning = false
     } else {
-      message.reasoningRawContent = cleanContent.substring(reasoningStart + reasoningStartTag.length)
+      // 推理还在进行中，提取推理内容
+      const newReasoningContent = cleanContent.substring(reasoningStart + reasoningStartTag.length)
+      // 如果已有推理内容，追加新内容（续传场景）
+      if (message.reasoningRawContent && newReasoningContent.startsWith(message.reasoningRawContent)) {
+        // 新内容包含旧内容，提取增量部分
+        message.reasoningRawContent = newReasoningContent
+      } else if (message.reasoningRawContent && !newReasoningContent.includes(message.reasoningRawContent)) {
+        // 新内容是增量，追加到已有内容
+        message.reasoningRawContent += newReasoningContent
+      } else {
+        // 首次设置或直接替换
+        message.reasoningRawContent = newReasoningContent
+      }
       cleanContent = cleanContent.substring(0, reasoningStart)
     }
   } else if (cleanContent.includes(reasoningStartTag) || cleanContent.includes(answerStartTag)) {
     // deepReasoning 为 false，但内容中包含推理标签
-    // 移除推理标签，将推理内容合并到主内容中
-    // 注意：如果消息已有推理属性（来自之前的续传），则保留它们不覆盖
+    // 或者：消息中已有推理内容，但当前内容片段不包含推理标签（需要保留已有推理内容）
 
-    // 先保存现有的推理属性（如果有）
-    const existingReasoningContent = message.reasoningContent || ''
-    const existingReasoningHtml = message.reasoningHtml || ''
-    const existingReasoningRawContent = message.reasoningRawContent || ''
-    const existingReasoningCompleted = message.reasoningCompleted
-    const existingReasoningDuration = message.reasoningDuration
+    // 检查消息是否已经有推理内容（来自之前的解析）
+    const hasExistingReasoning = message.reasoningContent || message.reasoningRawContent
+    const shouldPreserveReasoning = hasExistingReasoning && deepReasoning
 
-    if (cleanContent.includes(reasoningStartTag)) {
-      const reasoningStart = cleanContent.indexOf(reasoningStartTag)
-      const reasoningEnd = cleanContent.indexOf(reasoningEndTag)
 
-      if (reasoningEnd !== -1) {
-        // 有完整的推理标签，移除标签但保留内容
-        const beforeReasoning = cleanContent.substring(0, reasoningStart)
-        const afterReasoning = cleanContent.substring(reasoningEnd + reasoningEndTag.length)
-        cleanContent = beforeReasoning + cleanContent.substring(reasoningStart + reasoningStartTag.length, reasoningEnd) + afterReasoning
-      } else {
-        // 只有开始标签，移除开始标签
-        cleanContent = cleanContent.substring(0, reasoningStart) + cleanContent.substring(reasoningStart + reasoningStartTag.length)
+    if (shouldPreserveReasoning) {
+      // 如果已有推理内容且是深度推理模式，只处理当前内容，不覆盖推理部分
+      // 处理最终答案标签
+      if (cleanContent.includes(answerStartTag)) {
+        const answerStart = cleanContent.indexOf(answerStartTag)
+        const answerEnd = cleanContent.indexOf(answerEndTag)
+
+        if (answerEnd !== -1) {
+          cleanContent = cleanContent.substring(answerStart + answerStartTag.length, answerEnd)
+        } else if (answerStart !== -1) {
+          cleanContent = cleanContent.substring(answerStart + answerStartTag.length)
+        }
       }
-    }
-
-    // 处理最终答案标签
-    if (cleanContent.includes(answerStartTag)) {
-      const answerStart = cleanContent.indexOf(answerStartTag)
-      const answerEnd = cleanContent.indexOf(answerEndTag)
-
-      if (answerEnd !== -1) {
-        cleanContent = cleanContent.substring(0, answerStart) + cleanContent.substring(answerStart + answerStartTag.length, answerEnd) + cleanContent.substring(answerEnd + answerEndTag.length)
-      } else {
-        cleanContent = cleanContent.substring(0, answerStart) + cleanContent.substring(answerStart + answerStartTag.length)
-      }
-    }
-
-    // 如果消息已有推理属性，则恢复它们（不清除）
-    if (existingReasoningContent) {
-      message.reasoningContent = existingReasoningContent
-      message.reasoningHtml = existingReasoningHtml
-      message.reasoningRawContent = existingReasoningRawContent
-      message.reasoningCompleted = existingReasoningCompleted
-      message.reasoningDuration = existingReasoningDuration
+      // 不覆盖已有的推理属性
     } else {
-      // 只有当没有现有推理属性时才清除
-      message.reasoningRawContent = ''
-      message.reasoningContent = ''
-      message.reasoningHtml = ''
-      message.reasoningCompleted = false
-      message.reasoningDuration = ''
+      // deepReasoning 为 false，移除推理标签，将推理内容合并到主内容中
+      // 先保存现有的推理属性（如果有）
+      const existingReasoningContent = message.reasoningContent || ''
+      const existingReasoningHtml = message.reasoningHtml || ''
+      const existingReasoningRawContent = message.reasoningRawContent || ''
+      const existingReasoningCompleted = message.reasoningCompleted
+      const existingReasoningDuration = message.reasoningDuration
+
+      if (cleanContent.includes(reasoningStartTag)) {
+        const reasoningStart = cleanContent.indexOf(reasoningStartTag)
+        const reasoningEnd = cleanContent.indexOf(reasoningEndTag)
+
+        if (reasoningEnd !== -1) {
+          // 有完整的推理标签，移除标签但保留内容
+          const beforeReasoning = cleanContent.substring(0, reasoningStart)
+          const afterReasoning = cleanContent.substring(reasoningEnd + reasoningEndTag.length)
+          cleanContent = beforeReasoning + cleanContent.substring(reasoningStart + reasoningStartTag.length, reasoningEnd) + afterReasoning
+        } else {
+          // 只有开始标签，移除开始标签
+          cleanContent = cleanContent.substring(0, reasoningStart) + cleanContent.substring(reasoningStart + reasoningStartTag.length)
+        }
+      }
+
+      // 处理最终答案标签
+      if (cleanContent.includes(answerStartTag)) {
+        const answerStart = cleanContent.indexOf(answerStartTag)
+        const answerEnd = cleanContent.indexOf(answerEndTag)
+
+        if (answerEnd !== -1) {
+          cleanContent = cleanContent.substring(0, answerStart) + cleanContent.substring(answerStart + answerStartTag.length, answerEnd) + cleanContent.substring(answerEnd + answerEndTag.length)
+        } else {
+          cleanContent = cleanContent.substring(0, answerStart) + cleanContent.substring(answerStart + answerStartTag.length)
+        }
+      }
+
+      // 如果消息已有推理属性，则恢复它们（不清除）
+      if (existingReasoningContent) {
+        message.reasoningContent = existingReasoningContent
+        message.reasoningHtml = existingReasoningHtml
+        message.reasoningRawContent = existingReasoningRawContent
+        message.reasoningCompleted = existingReasoningCompleted
+        message.reasoningDuration = existingReasoningDuration
+      } else {
+        // 只有当没有现有推理属性时才清除
+        message.reasoningRawContent = ''
+        message.reasoningContent = ''
+        message.reasoningHtml = ''
+        message.reasoningCompleted = false
+        message.reasoningDuration = ''
+      }
     }
   }
 
@@ -1348,6 +1516,760 @@ const deleteMessage = (messageId) => {
   }
 }
 
+// 从HTML中提取纯文本（用于语音播报）
+const extractTextFromHtml = (html) => {
+  if (!html) return ''
+
+  // 创建临时DOM元素来解析HTML
+  const tempDiv = document.createElement('div')
+  tempDiv.innerHTML = html
+
+  // 移除代码块（通常不需要播报代码）
+  const codeBlocks = tempDiv.querySelectorAll('pre, code')
+  codeBlocks.forEach(block => {
+    // 对于代码块，只保留简短说明，不播报具体代码
+    block.textContent = '[代码]'
+  })
+
+  // 获取纯文本
+  let text = tempDiv.textContent || tempDiv.innerText || ''
+
+  // 清理多余的空格和换行
+  text = text.replace(/\s+/g, ' ').trim()
+
+  // 移除特殊符号的多余显示（如某些markdown符号）
+  text = text.replace(/[#*_`~\[\](){}|\\]/g, '')
+
+  return text
+}
+
+// 切换语音播报
+const toggleSpeak = (message) => {
+  // 如果当前正在播报这条消息，则停止播报
+  if (speakingMessageId.value === message.id) {
+    stopSpeaking()
+    return
+  }
+
+  // 如果正在播报其他消息，先停止
+  if (speakingMessageId.value) {
+    stopSpeaking()
+  }
+
+  // 开始播报当前消息
+  startSpeaking(message)
+}
+
+// 开始语音播报
+const startSpeaking = (message) => {
+  // 检查浏览器是否支持语音合成
+  if (!('speechSynthesis' in window)) {
+    ElMessage.error('您的浏览器不支持语音播报功能')
+    return
+  }
+
+  // 获取最终答案的纯文本内容（不包含推理过程）
+  const textToSpeak = extractTextFromHtml(message.content)
+
+  if (!textToSpeak) {
+    ElMessage.warning('没有可播报的内容')
+    return
+  }
+
+  // 停止当前正在进行的播报
+  window.speechSynthesis.cancel()
+
+  // 创建新的语音合成实例
+  const utterance = new SpeechSynthesisUtterance(textToSpeak)
+
+  // 设置中文语音
+  utterance.lang = 'zh-CN'
+  utterance.rate = 1.0  // 语速
+  utterance.pitch = 1.0 // 音调
+  utterance.volume = 1.0 // 音量
+
+  // 尝试获取中文语音
+  const voices = window.speechSynthesis.getVoices()
+  const chineseVoice = voices.find(voice => voice.lang.startsWith('zh'))
+  if (chineseVoice) {
+    utterance.voice = chineseVoice
+  }
+
+  // 播报开始时
+  utterance.onstart = () => {
+    speakingMessageId.value = message.id
+    speechUtterance.value = utterance
+  }
+
+  // 播报结束时
+  utterance.onend = () => {
+    speakingMessageId.value = null
+    speechUtterance.value = null
+  }
+
+  // 播报出错时
+  utterance.onerror = (event) => {
+    console.error('语音播报错误:', event.error)
+    speakingMessageId.value = null
+    speechUtterance.value = null
+    if (event.error !== 'interrupted' && event.error !== 'canceled') {
+      ElMessage.error('语音播报出错，请稍后重试')
+    }
+  }
+
+  // 开始播报
+  window.speechSynthesis.speak(utterance)
+}
+
+// 停止语音播报
+const stopSpeaking = () => {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel()
+  }
+  speakingMessageId.value = null
+  speechUtterance.value = null
+}
+
+// 语音流式消息相关状态变量
+let voiceStreamingMessageId = null // 用于追踪当前正在流式输出的AI消息
+let voiceStreamingRawContent = '' // 保存原始内容用于Markdown解析
+let voiceReasoningStartTime = null // 推理开始时间
+let voiceStreamCompleted = false // 标记流式内容是否已完成
+let voiceUploadId = null // 保存语音上传ID用于续传
+let voiceOnlineSearch = false // 语音消息的联网搜索配置
+let voiceDeepReasoning = false // 语音消息的深度推理配置
+
+// 获取当前聊天配置
+const getVoiceChatConfig = () => {
+  let onlineSearch = false
+  let deepReasoning = false
+  try {
+    const raw = localStorage.getItem('chatConfig')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      onlineSearch = !!parsed.isInternetSearchEnabled
+      deepReasoning = !!parsed.isDeepReasoningEnabled
+    }
+  } catch (error) {
+    console.error('读取配置失败:', error)
+  }
+  return { onlineSearch, deepReasoning }
+}
+
+// 处理语音消息（后端返回识别结果和AI回复）
+const handleVoiceMessage = (data) => {
+  const { recognizedText, responseContent, duration, attachmentId, uploadId, isUploading } = data
+
+  // 查找最后一条用户语音消息（用于更新上传中的消息）
+  const lastUserMessage = currentSession.value.messages
+    .slice()
+    .reverse()
+    .find(m => m.role === 'user' && m.isVoice && (!m.attachmentId || m.isUploading))
+
+  if (isUploading && !lastUserMessage) {
+    // 上传中的新消息，立即显示
+    const userMessage = {
+      id: Date.now(),
+      role: 'user',
+      content: '',
+      isVoice: true,
+      voiceDuration: duration || 0,
+      attachmentId: '',
+      uploadId: '',
+      isUploading: true,
+      time: new Date().toLocaleTimeString()
+    }
+    currentSession.value.messages.push(userMessage)
+
+    // 立即滚动到底部
+    scrollToBottom(false, true)
+
+    // 创建AI占位符消息
+    createVoiceAssistantPlaceholder()
+  } else if (!isUploading && lastUserMessage) {
+    // 上传完成，更新已有消息
+    lastUserMessage.attachmentId = attachmentId || ''
+    lastUserMessage.uploadId = uploadId || ''
+    lastUserMessage.isUploading = false
+
+    // 添加AI回复（仅用于非流式响应的兼容）
+    if (responseContent && !voiceStreamingMessageId) {
+      const { deepReasoning } = getVoiceChatConfig()
+      const assistantMessage = reactive({
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: '',
+        rawContent: responseContent,
+        reasoningContent: '',
+        reasoningRawContent: '',
+        reasoningExpanded: true,
+        reasoningCompleted: false,
+        isReasoning: false,
+        reasoningDuration: null,
+        isComplete: true,
+        isLastGenerating: false,
+        tokens: null,
+        time: new Date().toLocaleTimeString()
+      })
+      // 解析Markdown
+      parseMarkdown(assistantMessage)
+      currentSession.value.messages.push(assistantMessage)
+
+      // 滚动到底部
+      nextTick(() => scrollToBottom(false, true))
+    }
+  } else {
+    // 正常情况（非即时显示），直接添加新消息
+    const userMessage = {
+      id: Date.now(),
+      role: 'user',
+      content: '',
+      isVoice: true,
+      voiceDuration: duration || 0,
+      attachmentId: attachmentId || '',
+      uploadId: uploadId || '',
+      time: new Date().toLocaleTimeString()
+    }
+    currentSession.value.messages.push(userMessage)
+
+    // 立即滚动到底部
+    scrollToBottom(false, true)
+
+    // 添加AI回复（仅用于非流式响应的兼容）
+    if (responseContent && !voiceStreamingMessageId) {
+      const { deepReasoning } = getVoiceChatConfig()
+      const assistantMessage = reactive({
+        id: Date.now() + 1,
+        role: 'assistant',
+        content: '',
+        rawContent: responseContent,
+        reasoningContent: '',
+        reasoningRawContent: '',
+        reasoningExpanded: true,
+        reasoningCompleted: false,
+        isReasoning: false,
+        reasoningDuration: null,
+        isComplete: true,
+        isLastGenerating: false,
+        tokens: null,
+        time: new Date().toLocaleTimeString()
+      })
+      // 解析Markdown
+      parseMarkdown(assistantMessage)
+      currentSession.value.messages.push(assistantMessage)
+
+      // 滚动到底部
+      nextTick(() => scrollToBottom(false, true))
+    }
+  }
+}
+
+// 为语音消息创建AI占位符（确保立即显示加载状态）
+const createVoiceAssistantPlaceholder = () => {
+  const { deepReasoning } = getVoiceChatConfig()
+
+  // 检查是否已经存在占位符，避免重复创建
+  const existingPlaceholder = currentSession.value.messages
+    .slice()
+    .reverse()
+    .find(m => m.role === 'assistant' && m.isPlaceholder)
+
+  if (existingPlaceholder) {
+    return existingPlaceholder
+  }
+
+  // 重置流式完成标志，准备接收新的语音消息
+  voiceStreamCompleted = false
+
+  // 设置生成状态，让用户知道系统正在处理
+  isGenerating.value = true
+  isTyping.value = false
+
+  // 创建一个临时的AI消息占位符，提升用户体验
+  const assistantMessage = reactive({
+    id: Date.now() + 1,
+    role: 'assistant',
+    content: '',
+    rawContent: '',
+    reasoningContent: '',
+    reasoningRawContent: '',
+    reasoningExpanded: true,
+    reasoningCompleted: false,
+    isReasoning: !!deepReasoning,
+    reasoningStartTime: deepReasoning ? Date.now() : null,
+    reasoningDuration: null,
+    isComplete: false,
+    isLastGenerating: true,
+    tokens: null,
+    time: new Date().toLocaleTimeString(),
+    isPlaceholder: true // 标记为占位符
+  })
+  currentSession.value.messages.push(assistantMessage)
+
+
+  // 滚动到底部
+  nextTick(() => scrollToBottom(false, true))
+
+  return assistantMessage
+}
+
+// 处理语音流式内容
+const handleVoiceChunk = (data) => {
+  const { content } = data
+
+  // 获取当前配置
+  const { onlineSearch, deepReasoning } = getVoiceChatConfig()
+
+  // 保存配置用于续传
+  voiceOnlineSearch = onlineSearch
+  voiceDeepReasoning = deepReasoning
+
+  // 设置生成状态和正在输入状态
+  // 只有在流式未完成时才设置 isGenerating = true
+  if (!voiceStreamCompleted) {
+    isGenerating.value = true
+  }
+  isTyping.value = false // 收到内容后不显示"正在输入"
+
+  // 如果还没有创建AI消息，先检查是否有占位符需要复用
+  if (!voiceStreamingMessageId) {
+    // 查找之前创建的占位符消息
+    const placeholderMessage = currentSession.value.messages
+      .slice()
+      .reverse()
+      .find(m => m.role === 'assistant' && m.isPlaceholder)
+
+    if (placeholderMessage) {
+      // 复用占位符消息
+      voiceStreamingMessageId = placeholderMessage.id
+      // 保持占位符的推理开始时间，如果没有则重新设置
+      if (!voiceReasoningStartTime && deepReasoning) {
+        voiceReasoningStartTime = Date.now()
+        placeholderMessage.reasoningStartTime = voiceReasoningStartTime
+      } else {
+        voiceReasoningStartTime = placeholderMessage.reasoningStartTime
+      }
+      voiceStreamingRawContent = '' // 重置原始内容
+
+      // 移除占位符标记
+      delete placeholderMessage.isPlaceholder
+
+      // 确保深度推理状态正确
+      if (deepReasoning && !placeholderMessage.isReasoning) {
+        placeholderMessage.isReasoning = true
+      }
+
+      // 设置当前正在生成的消息
+      currentGeneratingMessage.value = placeholderMessage
+
+    } else {
+      // 记录推理开始时间
+      voiceReasoningStartTime = deepReasoning ? Date.now() : null
+      voiceStreamingRawContent = '' // 重置原始内容
+
+      const assistantMessage = reactive({
+        id: Date.now(),
+        role: 'assistant',
+        content: '',
+        rawContent: '',
+        reasoningContent: '',
+        reasoningRawContent: '',
+        reasoningExpanded: true,
+        reasoningCompleted: false,
+        isReasoning: !!deepReasoning,
+        reasoningStartTime: voiceReasoningStartTime,
+        reasoningDuration: null,
+        isComplete: false,
+        isLastGenerating: true,
+        tokens: null,
+        time: new Date().toLocaleTimeString()
+      })
+
+      currentSession.value.messages.push(assistantMessage)
+      voiceStreamingMessageId = assistantMessage.id
+
+      // 设置当前正在生成的消息
+      currentGeneratingMessage.value = assistantMessage
+
+    }
+
+    // 滚动到底部
+    nextTick(() => scrollToBottom(false, true))
+  }
+
+  // 找到当前流式消息并更新内容
+  const streamingMessage = currentSession.value.messages.find(m => m.id === voiceStreamingMessageId)
+  if (streamingMessage) {
+    // 累加原始内容
+    voiceStreamingRawContent += content
+
+    // 使用与文字消息相同的解析逻辑
+    parseContentAndReasoning(
+      streamingMessage,
+      voiceStreamingRawContent,
+      voiceReasoningStartTime,
+      deepReasoning
+    )
+
+    // 平滑滚动到底部
+    nextTick(() => scrollToBottom(true, false))
+  }
+}
+
+// 处理语音完成（上传完成，开始接收AI回复）
+const handleVoiceComplete = (data) => {
+  const { attachmentId, uploadId, duration } = data
+
+  // 更新用户语音消息的attachmentId和uploadId
+  // 优先查找正在上传的消息，如果没有则查找最后一条没有attachmentId的语音消息
+  let lastUserMessage = currentSession.value.messages
+    .slice()
+    .reverse()
+    .find(m => m.role === 'user' && m.isVoice && m.isUploading)
+
+  if (!lastUserMessage) {
+    // 如果没有找到正在上传的消息，查找最后一条没有attachmentId的语音消息
+    lastUserMessage = currentSession.value.messages
+      .slice()
+      .reverse()
+      .find(m => m.role === 'user' && m.isVoice && (!m.attachmentId || m.attachmentId === ''))
+  }
+
+  if (lastUserMessage) {
+    lastUserMessage.attachmentId = attachmentId || ''
+    lastUserMessage.uploadId = uploadId || '' // uploadId 用于获取语音数据
+    lastUserMessage.voiceDuration = duration || lastUserMessage.voiceDuration
+    lastUserMessage.isUploading = false
+  } else {
+    console.warn('[ChatPage] 未找到需要更新的用户语音消息')
+  }
+
+  // 流式内容接收完成，立即释放麦克风按钮锁定
+  voiceStreamCompleted = true
+  isGenerating.value = false
+}
+
+// 处理语音上传全部完成
+const handleVoiceUploadComplete = (data) => {
+  const { attachmentId, uploadId, duration } = data
+
+  // 找到当前流式消息并完成解析
+  const streamingMessage = currentSession.value.messages.find(m => m.id === voiceStreamingMessageId)
+  if (streamingMessage) {
+    // 如果推理已完成但还没有计算推理时长，现在计算
+    if (streamingMessage.reasoningCompleted && !streamingMessage.reasoningDuration && voiceReasoningStartTime) {
+      const reasoningEndTime = Date.now()
+      const reasoningElapsed = reasoningEndTime - voiceReasoningStartTime
+      streamingMessage.reasoningDuration = `${(reasoningElapsed / 1000).toFixed(1)}秒`
+    }
+    // 标记消息完成
+    streamingMessage.isComplete = true
+    streamingMessage.isLastGenerating = false
+    // 最终解析Markdown
+    parseMarkdown(streamingMessage)
+  }
+
+  // 清除流式消息ID和状态变量，为下次语音做准备
+  voiceStreamingMessageId = null
+  voiceStreamingRawContent = ''
+  voiceReasoningStartTime = null
+  voiceStreamCompleted = false // 重置流式完成标志
+
+  // 结束生成状态
+  isGenerating.value = false
+  isPaused.value = false
+  currentGeneratingMessage.value = null
+
+  // 更新用户语音消息的attachmentId和uploadId（如果还没有更新）
+  // 优先查找正在上传的消息，如果没有则查找没有attachmentId的语音消息
+  let lastUserMessage = currentSession.value.messages
+    .slice()
+    .reverse()
+    .find(m => m.role === 'user' && m.isVoice && m.isUploading)
+
+  if (!lastUserMessage) {
+    lastUserMessage = currentSession.value.messages
+      .slice()
+      .reverse()
+      .find(m => m.role === 'user' && m.isVoice && (!m.attachmentId || m.attachmentId === ''))
+  }
+
+  if (lastUserMessage && (!lastUserMessage.attachmentId || lastUserMessage.attachmentId === '')) {
+    lastUserMessage.attachmentId = attachmentId || ''
+    lastUserMessage.uploadId = uploadId || ''
+    lastUserMessage.voiceDuration = duration || lastUserMessage.voiceDuration
+    lastUserMessage.isUploading = false
+  }
+}
+
+// 处理语音元数据更新（如获取到uploadId时立即更新消息）
+const handleVoiceMetadataUpdate = (data) => {
+  const { uploadId } = data
+
+  // 保存 uploadId 用于续传
+  if (uploadId) {
+    voiceUploadId = uploadId
+  }
+
+  // 查找正在上传的用户语音消息
+  const lastUserMessage = currentSession.value.messages
+    .slice()
+    .reverse()
+    .find(m => m.role === 'user' && m.isVoice && m.isUploading && !m.uploadId)
+
+  if (lastUserMessage && uploadId) {
+    lastUserMessage.uploadId = uploadId
+  }
+}
+
+// 格式化语音时长显示
+const formatVoiceDuration = (seconds) => {
+  if (!seconds || seconds < 0.5) return '1"' // 最小显示1秒
+  // 向上取整，确保不显示0秒
+  const roundedSeconds = Math.ceil(seconds)
+  if (roundedSeconds < 60) return `${roundedSeconds}"`
+  const minutes = Math.floor(roundedSeconds / 60)
+  const remainingSeconds = roundedSeconds % 60
+  return remainingSeconds > 0 ? `${minutes}'${remainingSeconds}"` : `${minutes}'`
+}
+
+// 播放用户语音消息
+const playVoiceMessage = async (message) => {
+  if (playingVoiceMessageId.value === message.id) {
+    // 停止播放
+    stopVoiceMessage()
+    return
+  }
+
+  // 停止之前的播放
+  stopVoiceMessage()
+  playingVoiceMessageId.value = message.id
+
+  // 检查是否有 uploadId（用于获取语音数据）
+  if (!message.uploadId) {
+    console.error('[语音播放] 语音消息没有 uploadId，无法播放')
+    ElMessage.error('语音文件不存在，无法播放')
+    playingVoiceMessageId.value = null
+    return
+  }
+
+  try {
+    // 请求语音接口获取音频数据（base64格式），使用 uploadId
+    const audioUrl = `/api/v1/docsearch/voice/session/${message.uploadId}`
+
+    const response = await fetch(audioUrl)
+
+    if (!response.ok) {
+      throw new Error(`获取音频失败: ${response.status} ${response.statusText}`)
+    }
+
+    // 解析JSON响应，后端返回格式: { audio_data: "base64编码的音频数据" }
+    const jsonData = await response.json()
+
+    if (!jsonData.audio_data) {
+      throw new Error('响应中没有 audio_data 字段')
+    }
+
+    // 将base64数据转换为Audio可以播放的格式
+    const base64Audio = jsonData.audio_data
+
+    // 检查是否已经有数据前缀（如 data:audio/wav;base64,）
+    let audioSrc
+    if (base64Audio.startsWith('data:')) {
+      audioSrc = base64Audio
+    } else {
+      // 添加base64前缀，假设是wav格式
+      audioSrc = `data:audio/wav;base64,${base64Audio}`
+    }
+
+    // 创建Audio对象并播放
+    voiceAudio = new Audio(audioSrc)
+
+    // 音频可以播放时开始播放
+    voiceAudio.oncanplay = () => {
+      voiceAudio.play().catch(err => {
+        console.error('[语音播放] 播放失败:', err)
+        ElMessage.error('语音播放失败')
+        stopVoiceMessage()
+      })
+    }
+
+    // 音频播放完成时清除播放状态
+    voiceAudio.onended = () => {
+      stopVoiceMessage()
+    }
+
+    // 音频加载失败时清除播放状态
+    voiceAudio.onerror = (e) => {
+      console.error('[语音播放] 音频加载失败:', e)
+      ElMessage.error('语音加载失败')
+      stopVoiceMessage()
+    }
+
+    // 设置超时作为备用
+    const timeout = (message.voiceDuration || 5) * 1000 + 3000
+    setTimeout(() => {
+      if (playingVoiceMessageId.value === message.id) {
+        stopVoiceMessage()
+      }
+    }, timeout)
+
+  } catch (error) {
+    console.error('[语音播放] 获取音频失败:', error)
+    console.error('[语音播放] 错误堆栈:', error.stack)
+    ElMessage.error(`获取语音文件失败: ${error.message}`)
+    playingVoiceMessageId.value = null
+  }
+}
+
+// 停止语音消息播放
+const stopVoiceMessage = () => {
+  if (voiceAudio) {
+    voiceAudio.pause()
+    voiceAudio.currentTime = 0 // 重置播放位置
+    voiceAudio = null
+  }
+  playingVoiceMessageId.value = null
+}
+
+// 设置录音状态
+const setRecordingState = (recording) => {
+  isRecording.value = recording
+
+  if (recording) {
+    // 开始录音时初始化波形显示并滚动到底部
+    nextTick(() => {
+      initWaveformCanvas()
+      scrollToBottom(false, true) // 确保滚动到底部显示波形
+    })
+  } else {
+    // 停止录音时停止波形动画
+    if (waveformAnimationId) {
+      cancelAnimationFrame(waveformAnimationId)
+      waveformAnimationId = null
+    }
+  }
+}
+
+// 初始化会话（用于语音输入前的会话创建）
+const initializeConversation = async () => {
+  const sessionRef = currentSession.value
+
+  // 如果已有后端会话ID，直接返回
+  if (sessionRef.backendConversationId) {
+    return sessionRef.backendConversationId
+  }
+
+  try {
+    // 调用后端API初始化会话（发送一个空消息来获取conversation_id）
+    // 使用流式响应以正确获取metadata中的conversation_id
+    const result = await intelligentQuery(
+      {
+        query: '', // 空查询，仅用于初始化会话
+        mode: 'general',
+        conversation_id: null,
+        model_name: selectedModel.value,
+        stream: true, // 使用流式响应
+        online_search: false,
+        deep_reasoning: false
+      },
+      null, // onChunk - 不需要处理内容数据
+      (metadata) => {
+        // onMetadata - 接收会话ID
+        if (metadata.conversation_id) {
+          sessionRef.backendConversationId = metadata.conversation_id
+        }
+      },
+      null, // onError
+      null  // onComplete
+    )
+
+    // 从结果中获取conversation_id（如果metadata回调没有触发）
+    if (result && result.conversation_id) {
+      sessionRef.backendConversationId = result.conversation_id
+    }
+
+    return sessionRef.backendConversationId
+  } catch (error) {
+    console.error('[初始化会话] 失败:', error)
+    throw error
+  }
+}
+
+// 更新波形数据
+const updateWaveformData = (audioData) => {
+  waveformData = audioData
+  // 波形会在下一帧通过 drawWaveform 绘制
+}
+
+// 初始化波形canvas
+const initWaveformCanvas = () => {
+  const canvas = waveformCanvas.value
+  if (!canvas) return
+
+  const ctx = canvas.getContext('2d')
+  const dpr = window.devicePixelRatio || 1
+  // 使用 chat-messages-content 的宽度，而不是父元素的宽度
+  const messagesContainer = document.querySelector('.chat-messages-content')
+  const containerWidth = messagesContainer ? messagesContainer.offsetWidth : canvas.parentElement.offsetWidth
+
+  canvas.width = containerWidth * dpr
+  canvas.height = 100 * dpr
+  ctx.scale(dpr, dpr)
+
+  // 开始绘制波形
+  drawWaveform(ctx, containerWidth, 100)
+}
+
+// 绘制波形 - 更有质感的设计
+const drawWaveform = (ctx, width, height) => {
+  if (!isRecording.value) return
+
+  waveformAnimationId = requestAnimationFrame(() => drawWaveform(ctx, width, height))
+
+  // 清空画布
+  ctx.clearRect(0, 0, width, height)
+
+  if (!waveformData || waveformData.length === 0) return
+
+  // 高级感波形 - 镜像对称设计，更有质感
+  const barCount = 80
+  const centerX = width / 2
+  const maxBarHeight = height * 0.35
+
+  for (let i = 0; i < barCount; i++) {
+    const dataIndex = Math.floor(i * waveformData.length / barCount)
+    const value = waveformData[dataIndex] / 255
+
+    // 使用非线性变换让小值也有一定高度，更有动感
+    const enhancedValue = Math.pow(value, 0.7)
+    const barHeight = Math.max(2, enhancedValue * maxBarHeight)
+
+    // 从中心向两侧扩散
+    const distanceFromCenter = Math.abs(i - barCount / 2)
+    const offset = distanceFromCenter * (width * 0.6 / barCount)
+
+    // 渐变色 - 更有质感的绿色渐变
+    const gradient = ctx.createLinearGradient(0, height / 2 - barHeight, 0, height / 2 + barHeight)
+    gradient.addColorStop(0, 'rgba(34, 197, 94, 0.1)')   // 顶部淡色
+    gradient.addColorStop(0.3, 'rgba(34, 197, 94, 0.6)') // 中上
+    gradient.addColorStop(0.5, 'rgba(34, 197, 94, 1)')   // 中心最亮
+    gradient.addColorStop(0.7, 'rgba(34, 197, 94, 0.6)') // 中下
+    gradient.addColorStop(1, 'rgba(34, 197, 94, 0.1)')   // 底部淡色
+
+    ctx.fillStyle = gradient
+
+    // 绘制圆角柱状 - 垂直居中
+    const y = (height - barHeight) / 2
+    const barWidth = Math.max(2, (width * 0.6 / barCount) * 0.7)
+    const radius = barWidth / 2
+
+    ctx.beginPath()
+    ctx.roundRect(centerX - barWidth / 2 + (i < barCount / 2 ? -offset : offset), y, barWidth, barHeight, radius)
+    ctx.fill()
+  }
+}
+
 // 滚动到底部（智能版：如果用户在底部附近则自动滚动，否则不打扰用户）
 // @param smooth - 是否平滑滚动
 // @param force - 是否强制滚动（忽略用户位置，用于发送消息、重试等操作）
@@ -1442,8 +2364,16 @@ const deleteSession = (sessionId) => {
 const saveChatHistory = () => {
   const userId = userState.userId || 'guest'
   const storageKey = `chatHistory_${userId}`
+
+  // 序列化会话时包含 backendConversationId
+  const serializedSessions = chatSessions.value.map(session => ({
+    ...session,
+    // 确保 backendConversationId 被保存
+    backendConversationId: session.backendConversationId || null
+  }))
+
   localStorage.setItem(storageKey, JSON.stringify({
-    chatSessions: chatSessions.value,
+    chatSessions: serializedSessions,
     currentSessionId: currentSessionId.value,
     selectedModel: selectedModel.value
   }))
@@ -1570,11 +2500,247 @@ onMounted(() => {
       }
     }
   )
-  
+
   window.addEventListener('resize', () => {
     scrollToBottom(false)
   })
 })
+
+// 处理语音上传被中止（用户点击暂停）
+const handleVoiceAborted = () => {
+  // 保存当前生成状态，允许续传
+  if (voiceStreamingMessageId) {
+    const streamingMessage = currentSession.value.messages.find(m => m.id === voiceStreamingMessageId)
+    if (streamingMessage) {
+      // 保存已生成的内容到消息对象
+      streamingMessage.rawContent = voiceStreamingRawContent
+      // 保存语音相关状态到消息对象，用于续传
+      streamingMessage.voiceUploadId = voiceUploadId
+      streamingMessage.voiceOnlineSearch = voiceOnlineSearch
+      streamingMessage.voiceDeepReasoning = voiceDeepReasoning
+      streamingMessage.voiceReasoningStartTime = voiceReasoningStartTime
+      // 标记为暂停状态，显示继续生成按钮
+      streamingMessage.isLastGenerating = true
+      streamingMessage.isPaused = true
+      streamingMessage.isVoiceGeneration = true  // 标记这是语音生成
+    }
+  }
+
+  // 重置生成状态但不清除语音相关状态变量（用于续传）
+  isGenerating.value = false
+  isPaused.value = true
+  currentGeneratingMessage.value = null
+}
+
+// 继续语音生成
+const continueVoiceGeneration = async (message) => {
+  // 从消息对象中获取保存的语音状态
+  const savedUploadId = message.voiceUploadId || voiceUploadId
+  const savedOnlineSearch = message.voiceOnlineSearch !== undefined ? message.voiceOnlineSearch : voiceOnlineSearch
+  const savedDeepReasoning = message.voiceDeepReasoning !== undefined ? message.voiceDeepReasoning : voiceDeepReasoning
+  const savedReasoningStartTime = message.voiceReasoningStartTime || voiceReasoningStartTime || message.reasoningStartTime
+  let savedRawContent = message.rawContent || voiceStreamingRawContent
+
+  if (!savedUploadId) {
+    ElMessage.warning('无法继续生成，语音上传ID丢失')
+    return
+  }
+
+  if (!savedRawContent) {
+    ElMessage.warning('无法继续生成，没有已生成的内容')
+    return
+  }
+
+  // 保存原始内容，以便清理后为空时使用
+  const originalRawContent = savedRawContent
+
+  // 重要：移除推理标签！续传时后端不需要推理标签
+  const reasoningStartTag = '<推理过程>'
+  const reasoningEndTag = '</推理过程>'
+  const answerStartTag = '<最终答案>'
+  const answerEndTag = '</最终答案>'
+
+  // 如果包含推理标签，只保留最终答案部分（不含标签）
+  if (savedRawContent.includes(answerStartTag)) {
+    const answerStart = savedRawContent.indexOf(answerStartTag)
+    const answerEnd = savedRawContent.indexOf(answerEndTag)
+    if (answerEnd !== -1) {
+      // 完整的最终答案，提取标签之间的内容
+      savedRawContent = savedRawContent.substring(answerStart + answerStartTag.length, answerEnd)
+    } else if (answerStart !== -1) {
+      // 答案还在生成中，提取开始标签之后的内容（可能包含未完成的答案）
+      savedRawContent = savedRawContent.substring(answerStart + answerStartTag.length)
+    }
+  } else if (savedRawContent.includes(reasoningStartTag)) {
+    // 只有推理标签，没有最终答案标签
+    const reasoningEnd = savedRawContent.indexOf(reasoningEndTag)
+    if (reasoningEnd !== -1) {
+      // 推理已完成，取推理之后的内容
+      savedRawContent = savedRawContent.substring(reasoningEnd + reasoningEndTag.length)
+    } else {
+      // 推理还在进行中，移除未完成的推理标签和内容
+      // 续传时不应该发送推理内容，让后端重新开始推理
+      savedRawContent = ''
+    }
+  }
+
+  savedRawContent = savedRawContent.trim()
+
+  // 如果清理后内容为空，使用原始内容进行续传
+  if (!savedRawContent) {
+    savedRawContent = originalRawContent.trim()
+  }
+
+  if (!savedRawContent) {
+    ElMessage.warning('没有可继续的内容')
+    return
+  }
+
+  try {
+    isGenerating.value = true
+    isPaused.value = false
+    voiceStreamCompleted = false
+
+    // 创建新的AbortController
+    currentAbortController.value = new AbortController()
+
+    // 从会话中查找消息对象，确保使用响应式引用
+    const assistantMessage = currentSession.value.messages.find(m => m.id === message.id) || message
+    assistantMessage.isComplete = false
+    assistantMessage.isLastGenerating = true
+    assistantMessage.isPaused = false
+    currentGeneratingMessage.value = assistantMessage
+
+    let rawContent = savedRawContent
+
+    // 恢复语音状态变量
+    voiceUploadId = savedUploadId
+    voiceOnlineSearch = savedOnlineSearch
+    voiceDeepReasoning = savedDeepReasoning
+    voiceStreamingRawContent = rawContent
+    voiceStreamingMessageId = assistantMessage.id
+    voiceReasoningStartTime = savedReasoningStartTime
+
+    // 用于检测后端返回模式（只在第一个chunk时判断一次）
+    let detectedBackendMode = null  // 'incremental' 或 'full'
+
+    // 使用 voice.js API 继续生成
+    const { voiceApi } = await import('../api/voice.js')
+
+    // 创建新的上传器（只调用 complete 方法，传入 continue_from_content）
+    const uploader = voiceApi.createUploader(currentSession.value.backendConversationId, {
+      modelName: selectedModel.value,
+      onlineSearch: savedOnlineSearch,
+      deepReasoning: savedDeepReasoning,
+      temperature: 0.5,
+      maxHistory: 6
+    })
+
+    // 设置 AbortController
+    uploader.setAbortController(currentAbortController.value)
+
+    // 使用 continue 方法进行续传
+    await uploader.continue(
+      savedUploadId,
+      rawContent,  // continueFromContent - 已生成的内容（已清理推理标签）
+      // onChunk
+      (chunk) => {
+        if (chunk) {
+          // 首次检测后端返回模式
+          if (detectedBackendMode === null) {
+            // 如果chunk内容完全包含rawContent作为前缀，且chunk明显更长
+            // 则说明后端返回的是完整内容
+            if (chunk.length > rawContent.length * 1.5 &&
+                chunk.startsWith(rawContent)) {
+              detectedBackendMode = 'full'
+            } else {
+              // 否则认为是增量模式
+              detectedBackendMode = 'incremental'
+            }
+          }
+
+          if (detectedBackendMode === 'full') {
+            // 完整内容模式：提取增量部分
+            if (chunk.length > rawContent.length &&
+                chunk.startsWith(rawContent)) {
+              const incrementalContent = chunk.substring(rawContent.length)
+              if (incrementalContent) {
+                rawContent += incrementalContent
+              }
+            }
+          } else {
+            // 增量模式：直接追加
+            rawContent += chunk
+          }
+
+          voiceStreamingRawContent = rawContent
+
+          // 解析内容
+          parseContentAndReasoning(
+            assistantMessage,
+            rawContent,
+            savedReasoningStartTime,
+            savedDeepReasoning
+          )
+
+          scrollToBottom(false)
+        }
+      },
+      // onMetadata
+      (metadata) => {
+        if (metadata.conversation_id) {
+          currentSession.value.backendConversationId = metadata.conversation_id
+        }
+        if (metadata.usage_metadata?.total_tokens) {
+          assistantMessage.tokens = metadata.usage_metadata.total_tokens
+        }
+      },
+      // onComplete
+      () => {
+        assistantMessage.isComplete = true
+        assistantMessage.isLastGenerating = false
+        assistantMessage.isPaused = false
+        parseMarkdown(assistantMessage)
+        isGenerating.value = false
+        isPaused.value = false
+        currentGeneratingMessage.value = null
+
+        // 清除语音状态
+        voiceStreamingMessageId = null
+        voiceStreamingRawContent = ''
+        voiceReasoningStartTime = null
+        voiceUploadId = null
+        voiceStreamCompleted = false
+      }
+    )
+
+  } catch (error) {
+    // 如果是用户主动中止，保存状态以便续传
+    if (error.name === 'AbortError') {
+      console.warn('[语音续写] 用户中止')
+      voiceStreamingRawContent = rawContent
+      if (assistantMessage) {
+        assistantMessage.rawContent = rawContent
+        assistantMessage.isLastGenerating = true
+        assistantMessage.isPaused = true
+      }
+      isPaused.value = true
+      isGenerating.value = false
+      currentGeneratingMessage.value = null
+      return
+    }
+
+    console.error('[语音续写] 失败:', error)
+    ElMessage.error(`续写生成失败: ${error.message || error}`)
+    if (assistantMessage) {
+      assistantMessage.isLastGenerating = false
+      assistantMessage.isPaused = false
+    }
+    isGenerating.value = false
+    isPaused.value = false
+    currentGeneratingMessage.value = null
+  }
+}
 
 defineExpose({
   sendMessage,
@@ -1584,12 +2750,43 @@ defineExpose({
   switchSession,
   deleteSession,
   chatSessions,
+  currentSession,
   currentSessionId,
   selectedModel,
   isGenerating,  // 直接暴露 ref 对象
   isPaused,      // 直接暴露 ref 对象
   handlePauseGeneration,
-  continueGenerationFromMessage
+  continueGenerationFromMessage,
+  handleVoiceMessage,
+  handleVoiceChunk,
+  handleVoiceComplete,
+  handleVoiceUploadComplete,
+  handleVoiceMetadataUpdate,
+  handleVoiceAborted,
+  continueVoiceGeneration,
+  setRecordingState,
+  updateWaveformData,
+  initializeConversation,
+  // 获取聊天配置
+  getChatConfig: () => {
+    let onlineSearch = false
+    let deepReasoning = false
+    try {
+      const raw = localStorage.getItem('chatConfig')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        onlineSearch = !!parsed.isInternetSearchEnabled
+        deepReasoning = !!parsed.isDeepReasoningEnabled
+      }
+    } catch (error) {
+      console.error('读取配置失败:', error)
+    }
+    return {
+      modelName: selectedModel.value,
+      onlineSearch,
+      deepReasoning
+    }
+  }
 })
 </script>
 
@@ -1613,6 +2810,7 @@ defineExpose({
   scroll-behavior: smooth;
   scrollbar-gutter: stable;
   min-height: 0;
+  position: relative;
 }
 
 /* 内容包装器 - 控制最大宽度并居中 */
@@ -1621,6 +2819,10 @@ defineExpose({
   margin: 0 auto;
   padding: 24px 20px;
   padding-bottom: 40px;
+  /* 确保录音时波形始终在底部 */
+  min-height: calc(100vh - 300px);
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-message {
@@ -1754,7 +2956,17 @@ defineExpose({
 
 .chat-message__content {
   max-width: 70%;
-  min-width: 100px;
+  /* 移除 min-width 限制，让宽度自适应内容 */
+}
+
+/* 用户消息内容与头像之间的间距优化 */
+.chat-message--user .chat-message__avatar {
+  margin-left: 8px;
+}
+
+/* AI消息内容与头像之间的间距优化 */
+.chat-message--assistant .chat-message__avatar {
+  margin-right: 8px;
 }
 
 .chat-message--assistant .chat-message__content {
@@ -1774,11 +2986,15 @@ defineExpose({
   border-radius: var(--radius-lg);
   line-height: 1.6;
   word-break: break-word;
+  overflow-wrap: break-word;
   font-size: 14px;
   background-color: var(--card-background);
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   transition: var(--transition);
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .chat-message--user .chat-message__text {
@@ -2245,6 +3461,82 @@ defineExpose({
   margin-bottom: 16px;
 }
 
+/* AI思考占位符样式 */
+.ai-thinking-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* 推理内容加载区域 */
+.ai-reasoning-loading {
+  display: flex;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.ai-thinking-placeholder i {
+  font-size: 16px;
+  animation: rotate 1s linear infinite;
+}
+
+/* 高级加载点动效（普通模式） */
+.ai-loading-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.ai-loading-dots .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--primary-color);
+  opacity: 0.6;
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+.ai-loading-dots .dot:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.ai-loading-dots .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.ai-loading-dots .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes dot-pulse {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 深色模式下的加载点 */
+.dark-theme .ai-loading-dots .dot {
+  background-color: #60a5fa;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .ai-reasoning-header {
   display: flex;
   align-items: center;
@@ -2346,6 +3638,7 @@ defineExpose({
   display: flex;
   gap: 4px;
   align-items: center;
+  flex: 1;
 }
 
 .chat-message__action-btn {
@@ -2439,7 +3732,7 @@ defineExpose({
   margin-left: 4px;
 }
 
-/* 继续生成按钮样式（在消息操作栏中） - 增加左边距与其他按钮分开 */
+/* 继续生成按钮样式（在消息操作栏中） - 推到最右边 */
 .continue-generate-btn {
   color: #10b981 !important;
   background-color: rgba(16, 185, 129, 0.1);
@@ -2451,7 +3744,7 @@ defineExpose({
   gap: 4px;
   font-weight: 500;
   transition: var(--transition-fast);
-  margin-left: 12px; /* 与左侧按钮保持更大距离 */
+  margin-left: auto !important; /* 推到最右边 */
 }
 
 .continue-generate-btn:hover {
@@ -2472,5 +3765,207 @@ defineExpose({
 .dark-theme .continue-generate-btn:hover {
   color: #6ee7b7 !important;
   background-color: rgba(52, 211, 153, 0.25) !important;
+}
+
+/* 播报按钮样式 */
+.chat-message__action-btn:has(.speaking-icon) {
+  color: #3b82f6 !important;
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.chat-message__action-btn:has(.speaking-icon):hover {
+  background-color: rgba(59, 130, 246, 0.2) !important;
+}
+
+.dark-theme .chat-message__action-btn:has(.speaking-icon) {
+  color: #60a5fa !important;
+  background-color: rgba(96, 165, 250, 0.15);
+}
+
+.dark-theme .chat-message__action-btn:has(.speaking-icon):hover {
+  background-color: rgba(96, 165, 250, 0.25) !important;
+}
+
+/* 播报中动画效果 */
+.speaking-icon {
+  animation: speaking-pulse 1s ease-in-out infinite;
+}
+
+@keyframes speaking-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+}
+
+/* ========== 语音消息样式 ========== */
+/* 用户语音消息 - 类似微信语音条 */
+.voice-message {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 80px;
+  max-width: 280px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  border-radius: 12px;
+  border-bottom-right-radius: 4px;
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+}
+
+.voice-message__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.voice-message__text {
+  font-size: 14px;
+  line-height: 1.4;
+  word-wrap: break-word;
+  word-break: break-all;
+}
+
+/* 浅色模式下的语音消息 */
+:not(.dark-theme) .voice-message {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #c8e6c9;
+}
+
+/* 深色模式下的语音消息 */
+.dark-theme .voice-message {
+  background: #1e3a28;
+  color: #81c784;
+  border: 1px solid #2d4a35;
+}
+
+.voice-message:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+:not(.dark-theme) .voice-message:hover {
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+}
+
+.dark-theme .voice-message:hover {
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+/* 语音播放动画图标 */
+.voice-message__icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* 语音播放中动画 */
+.voice-message.playing .voice-message__icon {
+  animation: voice-playing 0.6s ease-in-out infinite;
+}
+
+@keyframes voice-playing {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+/* 语音波形动画 */
+.voice-message__wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+}
+
+.voice-message__wave-bar {
+  width: 3px;
+  background: currentColor;
+  border-radius: 2px;
+  animation: voice-wave 1s ease-in-out infinite;
+}
+
+.voice-message__wave-bar:nth-child(1) {
+  height: 6px;
+  animation-delay: 0s;
+}
+
+.voice-message__wave-bar:nth-child(2) {
+  height: 10px;
+  animation-delay: 0.1s;
+}
+
+.voice-message__wave-bar:nth-child(3) {
+  height: 14px;
+  animation-delay: 0.2s;
+}
+
+.voice-message__wave-bar:nth-child(4) {
+  height: 10px;
+  animation-delay: 0.3s;
+}
+
+.voice-message__wave-bar:nth-child(5) {
+  height: 6px;
+  animation-delay: 0.4s;
+}
+
+@keyframes voice-wave {
+  0%, 100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.5);
+  }
+}
+
+/* 语音消息未播放时隐藏波形动画 */
+.voice-message:not(.playing) .voice-message__wave {
+  display: none;
+}
+
+/* 语音时长显示 */
+.voice-message__duration {
+  font-size: 12px;
+  margin-left: auto;
+  opacity: 0.8;
+}
+
+/* 上传中状态 */
+.voice-message.uploading {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.voice-message__uploading {
+  font-size: 14px;
+  margin-left: auto;
+}
+
+/* ========== 录音波形显示区域 ========== */
+.voice-waveform-canvas {
+  width: 100%;
+  height: 100px;
+  display: block;
+  background: transparent;
+  margin-top: auto; /* 自动推到底部 */
+  flex-shrink: 0;
 }
 </style>

@@ -155,6 +155,7 @@ const activeMenu = computed(() => {
 })
 
 const handleNewChat = () => {
+  console.log('[Sidebar] 点击了开启新对话按钮')
   emit('new-chat')
 }
 

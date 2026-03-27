@@ -127,6 +127,27 @@
       </el-dialog>
 
       <div class="chat-input__wrapper">
+        <!-- 语音录制按钮 -->
+        <VoiceRecorder
+          ref="voiceRecorderRef"
+          @voice-message-ready="handleVoiceMessageReady"
+          @voice-chunk="handleVoiceChunk"
+          @voice-complete="handleVoiceComplete"
+          @voice-upload-complete="handleVoiceUploadComplete"
+          @voice-metadata-update="handleVoiceMetadataUpdate"
+          @voice-aborted="handleVoiceAborted"
+          @recording-state-changed="handleRecordingStateChanged"
+          @audio-data-available="handleAudioDataAvailable"
+          @initialize-conversation="handleInitializeConversation"
+          @conversation-id-update="handleConversationIdUpdate"
+          :conversation-id="props.conversationId"
+          :model-name="props.modelName"
+          :online-search="props.onlineSearch"
+          :deep-reasoning="props.deepReasoning"
+          :is-generating="props.isGenerating"
+          :abort-signal="voiceAbortSignal"
+        />
+
         <!-- 上传文档按钮 -->
         <el-upload
           ref="uploadRef"
@@ -155,8 +176,8 @@
           type="textarea"
           :rows="3"
           :maxlength="2000"
-          placeholder="在这里输入你的问题..."
-          @keyup.enter="sendMessage"
+          placeholder="在这里输入你的问题... (Shift+Enter 换行，Enter 发送)"
+          @keydown.enter="handleEnterKey"
           resize="vertical"
           class="chat-input__textarea"
         ></el-input>
@@ -200,9 +221,10 @@
 <script setup>
 import { ref, defineEmits, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import VoiceRecorder from './VoiceRecorder.vue'
 
 // 定义事件
-const emit = defineEmits(['sendMessage', 'uploadFile', 'modelChange', 'newChat', 'loadHistory', 'deleteHistory', 'pauseGeneration'])
+const emit = defineEmits(['sendMessage', 'uploadFile', 'modelChange', 'newChat', 'loadHistory', 'deleteHistory', 'pauseGeneration', 'voiceMessageReady', 'voiceChunk', 'voiceComplete', 'voiceUploadComplete', 'recordingStateChanged', 'audioDataAvailable', 'initializeConversation', 'conversationIdUpdate', 'voiceAborted'])
 
 // 接收当前选中的模型作为props
 const props = defineProps({
@@ -212,6 +234,24 @@ const props = defineProps({
   },
   // 是否正在生成
   isGenerating: {
+    type: Boolean,
+    default: false
+  },
+  // 当前会话ID（用于语音上传）
+  conversationId: {
+    type: String,
+    default: ''
+  },
+  // 语音配置参数
+  modelName: {
+    type: String,
+    default: 'glm'
+  },
+  onlineSearch: {
+    type: Boolean,
+    default: false
+  },
+  deepReasoning: {
     type: Boolean,
     default: false
   }
@@ -227,6 +267,12 @@ watch(
 
 // 输入消息
 const inputMessage = ref('')
+
+// 语音录制器引用
+const voiceRecorderRef = ref(null)
+
+// 语音上传的 AbortController
+const voiceAbortSignal = ref(null)
 
 // 已上传文件列表
 const uploadedFiles = ref([])
@@ -404,6 +450,17 @@ const removeFile = (index) => {
   uploadedFiles.value.splice(index, 1)
 }
 
+// 处理 Enter 键（Shift+Enter 换行，Enter 发送）
+const handleEnterKey = (event) => {
+  // 如果按下了 Shift 键，允许默认换行行为
+  if (event.shiftKey) {
+    return // 不阻止默认行为，允许换行
+  }
+  // 否则阻止默认换行并发送消息
+  event.preventDefault()
+  sendMessage()
+}
+
 // 发送消息
 const sendMessage = () => {
   // 允许只有文件上传而没有文本内容
@@ -425,6 +482,76 @@ const sendMessage = () => {
 const handlePause = () => {
   emit('pauseGeneration')
 }
+
+// 处理语音消息就绪
+const handleVoiceMessageReady = (data) => {
+  // 创建新的 AbortController 用于语音上传中断
+  voiceAbortSignal.value = new AbortController()
+  emit('voiceMessageReady', data)
+}
+
+// 处理语音流式内容
+const handleVoiceChunk = (data) => {
+  emit('voiceChunk', data)
+}
+
+// 处理语音上传完成
+const handleVoiceComplete = (data) => {
+  emit('voiceComplete', data)
+}
+
+// 处理语音元数据更新（如uploadId）
+const handleVoiceMetadataUpdate = (data) => {
+  emit('voiceMetadataUpdate', data)
+}
+
+// 处理语音上传全部完成
+const handleVoiceUploadComplete = (data) => {
+  // 清除 AbortController
+  voiceAbortSignal.value = null
+  emit('voiceUploadComplete', data)
+}
+
+// 处理录音状态变化
+const handleRecordingStateChanged = (isRecording) => {
+  emit('recordingStateChanged', isRecording)
+}
+
+// 处理音频数据（用于波形显示）
+const handleAudioDataAvailable = (audioData) => {
+  emit('audioDataAvailable', audioData)
+}
+
+// 处理初始化会话请求
+const handleInitializeConversation = () => {
+  emit('initializeConversation')
+}
+
+// 处理会话ID更新（语音上传后后端返回新的会话ID）
+const handleConversationIdUpdate = (conversationId) => {
+  emit('conversationIdUpdate', conversationId)
+}
+
+// 处理语音上传被中止
+const handleVoiceAborted = () => {
+  emit('voiceAborted')
+}
+
+// 中断语音上传
+const abortVoiceUpload = () => {
+  if (voiceRecorderRef.value && typeof voiceRecorderRef.value.abortUpload === 'function') {
+    voiceRecorderRef.value.abortUpload()
+  }
+  if (voiceAbortSignal.value) {
+    voiceAbortSignal.value.abort()
+    voiceAbortSignal.value = null
+  }
+}
+
+// 暴露方法给父组件
+defineExpose({
+  abortVoiceUpload
+})
 </script>
 
 <style scoped>

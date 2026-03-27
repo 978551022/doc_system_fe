@@ -30,6 +30,7 @@ export const intelligentQuery = async ({
   query,
   mode = 'general',
   document_id = null,
+  document_ids = null,
   conversation_id = null,
   user_id = null,
   model_name = 'glm',
@@ -51,6 +52,9 @@ export const intelligentQuery = async ({
   // 可选参数
   if (document_id) {
     requestBody.document_id = document_id
+  }
+  if (document_ids && document_ids.length > 0) {
+    requestBody.document_ids = document_ids
   }
   if (conversation_id) {
     requestBody.conversation_id = conversation_id
@@ -84,6 +88,7 @@ export const intelligentQuery = async ({
     const decoder = new TextDecoder('utf-8')
     let buffer = ''
     let resultConversationId = conversation_id
+    let hasCalledOnComplete = false // 防止重复调用onComplete
 
     // 解析并处理单个SSE数据事件
     const processSSEEvent = (jsonData) => {
@@ -120,7 +125,8 @@ export const intelligentQuery = async ({
 
           case 'done':
             // 完成标记
-            if (onComplete) {
+            if (onComplete && !hasCalledOnComplete) {
+              hasCalledOnComplete = true
               onComplete()
             }
             break
@@ -151,8 +157,9 @@ export const intelligentQuery = async ({
             }
           }
         }
-        // 调用完成回调
-        if (onComplete) {
+        // 流结束时调用完成回调（如果还未调用过）
+        if (onComplete && !hasCalledOnComplete) {
+          hasCalledOnComplete = true
           onComplete()
         }
         break
