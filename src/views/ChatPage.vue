@@ -237,11 +237,48 @@
       <!-- 内容包装器结束 -->
       </div>
     </div>
+
+    <!-- 聊天输入区域收缩/回弹按钮 -->
+    <div
+      class="chat-input-toggle"
+      :class="{ 'chat-input-toggle--collapsed': isInputCollapsed }"
+      @click="toggleInputCollapse"
+      :title="isInputCollapsed ? '展开输入框' : '收起输入框'"
+    >
+      <i :class="isInputCollapsed ? 'el-icon-arrow-up' : 'el-icon-arrow-down'"></i>
+    </div>
+
+    <!-- 聊天输入区域 -->
+    <transition name="slide-input">
+      <ChatInput
+        v-show="!isInputCollapsed"
+        ref="chatInputRef"
+        @send-message="sendMessage"
+        @upload-file="handleUploadFile"
+        @model-change="handleModelChange"
+        @new-chat="createNewSession"
+        @pause-generation="pauseGeneration"
+        @voice-message-ready="handleVoiceMessageReady"
+        @voice-chunk="handleVoiceChunk"
+        @voice-complete="handleVoiceComplete"
+        @voice-upload-complete="handleVoiceUploadComplete"
+        @voice-metadata-update="handleVoiceMetadataUpdate"
+        @voice-aborted="handleVoiceAborted"
+        @recording-state-changed="handleRecordingStateChanged"
+        @audio-data-available="handleAudioDataAvailable"
+        :current-model="currentModel"
+        :is-generating="isGenerating"
+        :conversation-id="currentSession?.backendConversationId"
+        :model-name="currentModel"
+        :online-search="onlineSearch"
+        :deep-reasoning="deepReasoning"
+      />
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
@@ -251,6 +288,7 @@ import userState from '../utils/userStore.js'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
+import ChatInput from '../components/ChatInput.vue'
 
 // 配置Markdown渲染
 marked.setOptions({
@@ -469,6 +507,28 @@ const waveformCanvas = ref(null)     // 波形canvas引用
 let waveformAnimationId = null       // 波形动画ID
 let waveformData = null              // 波形数据
 
+// ChatInput组件引用
+const chatInputRef = ref(null)
+
+// 当前选择的模型和相关配置
+const currentModel = ref(localStorage.getItem('selectedModel') || 'deepseek-chat')
+const onlineSearch = ref(localStorage.getItem('onlineSearch') === 'true')
+const deepReasoning = ref(localStorage.getItem('deepReasoning') === 'true')
+
+// 输入框收缩状态
+const isInputCollapsed = ref(false)
+
+// 切换输入框收缩状态
+const toggleInputCollapse = () => {
+  isInputCollapsed.value = !isInputCollapsed.value
+  // 收缩后滚动到底部
+  if (!isInputCollapsed.value) {
+    nextTick(() => {
+      scrollToBottom()
+    })
+  }
+}
+
 // 用户语音消息播放状态
 const playingVoiceMessageId = ref(null)  // 当前正在播放的用户语音消息ID
 let voiceAudio = null                    // Audio对象
@@ -490,6 +550,12 @@ const handlePauseGeneration = () => {
   }
 
   isGenerating.value = false
+}
+
+// 处理模型变化
+const handleModelChange = (modelId) => {
+  currentModel.value = modelId
+  localStorage.setItem('selectedModel', modelId)
 }
 
 // 从消息继续生成（点击消息操作栏的继续生成按钮）
@@ -2532,6 +2598,19 @@ const handleVoiceAborted = () => {
   currentGeneratingMessage.value = null
 }
 
+// 处理录音状态变化
+const handleRecordingStateChanged = (data) => {
+  isRecording.value = data.isRecording
+}
+
+// 处理音频数据可用
+const handleAudioDataAvailable = (data) => {
+  // 处理音频数据
+  if (data.audioData) {
+    // 可以用于波形显示等
+  }
+}
+
 // 继续语音生成
 const continueVoiceGeneration = async (message) => {
   // 从消息对象中获取保存的语音状态
@@ -2799,6 +2878,7 @@ defineExpose({
   background-color: var(--background-color);
   padding: 0;
   margin: 0;
+  position: relative;
 }
 
 .chat-messages {
@@ -3967,5 +4047,88 @@ defineExpose({
   background: transparent;
   margin-top: auto; /* 自动推到底部 */
   flex-shrink: 0;
+}
+
+/* ========== 聊天输入区域收缩/回弹按钮 ========== */
+.chat-input-toggle {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 24px;
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.chat-input-toggle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 2px;
+  background: var(--primary-color);
+  border-radius: 0 0 1px 1px;
+  transition: all 0.3s ease;
+}
+
+.chat-input-toggle:hover {
+  height: 28px;
+  width: 100px;
+  box-shadow: 0 -4px 12px rgba(79, 70, 229, 0.15);
+}
+
+.chat-input-toggle:hover::before {
+  width: 40px;
+  background: linear-gradient(90deg, transparent, var(--primary-color), transparent);
+}
+
+.chat-input-toggle--collapsed {
+  bottom: 0;
+  border-radius: 12px 12px 0 0;
+}
+
+.chat-input-toggle--collapsed::before {
+  top: auto;
+  bottom: 0;
+  border-radius: 1px 1px 0 0;
+}
+
+.chat-input-toggle i {
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.chat-input-toggle:hover i {
+  color: var(--primary-color);
+  transform: scale(1.1);
+}
+
+/* 输入框收缩动画 */
+.slide-input-enter-active,
+.slide-input-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slide-input-enter-from,
+.slide-input-leave-to {
+  opacity: 0;
+  transform: translateY(100%);
 }
 </style>

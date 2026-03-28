@@ -1,134 +1,160 @@
 <template>
-  <aside class="app-sidebar">
-    <!-- 侧边栏标题 -->
-    <div class="app-sidebar__header">
-      <div class="app-sidebar__title">
-        <i class="el-icon-folder-opened"></i>
-        <el-button
-          type="primary"
-          @click="handleNewChat"
-          class="new-chat-btn"
-          size="small"
-        >
-          <i class="el-icon-circle-plus"></i>
-          开启新对话
-        </el-button>
+  <!-- 侧边栏容器 -->
+  <div class="sidebar-wrapper" :class="{ 'sidebar-wrapper--hidden': isHidden }">
+    <!-- 收缩/展开指示标 -->
+    <div class="sidebar-toggle" :class="{ 'sidebar-toggle--collapsed': isHidden }" @click="toggleSidebar" :title="isHidden ? '展开导航栏' : '收起导航栏'">
+      <div class="sidebar-toggle__indicator">
+        <i :class="isHidden ? 'el-icon-s-unfold' : 'el-icon-d-arrow-left'"></i>
       </div>
-      <el-button
-        type="text"
-        @click="toggleCollapse"
-        class="app-sidebar__collapse-btn"
-        title="折叠/展开"
-      >
-        <i :class="isCollapsed ? 'el-icon-s-unfold' : 'el-icon-s-fold'"></i>
-      </el-button>
     </div>
 
-    <!-- 导航菜单 -->
-    <el-menu
-      :default-active="activeMenu"
-      class="app-sidebar__menu"
-      router
-      :unique-opened="true"
-      :collapse="isCollapsed"
-      :collapse-transition="true"
-    >
-      <!-- 智能对话（默认页面） -->
-      <el-menu-item index="/chat">
-        <i class="el-icon-chat-dot-round"></i>
-        <template #title>
-          <span>智能对话</span>
-        </template>
-      </el-menu-item>
-
-      <!-- 文档列表 -->
-      <el-menu-item index="/documents">
-        <i class="el-icon-document-copy"></i>
-        <template #title>
-          <span>文档列表</span>
-        </template>
-      </el-menu-item>
-
-      <!-- API接口测试 -->
-      <el-menu-item index="/api-test">
-        <i class="el-icon-s-cooperation"></i>
-        <template #title>
-          <span>API接口测试</span>
-        </template>
-      </el-menu-item>
-
-      <!-- 历史对话 -->
-      <el-menu-item index="/history">
-        <i class="el-icon-time"></i>
-        <template #title>
-          <span>历史对话</span>
-        </template>
-      </el-menu-item>
-
-      <!-- 设置 -->
-      <el-menu-item index="/settings">
-        <i class="el-icon-setting"></i>
-        <template #title>
-          <span>设置</span>
-        </template>
-      </el-menu-item>
-
-      <!-- 帮助 -->
-      <el-menu-item index="/help">
-        <i class="el-icon-question"></i>
-        <template #title>
-          <span>帮助</span>
-        </template>
-      </el-menu-item>
-
-      <!-- 关于 -->
-      <el-menu-item index="/about">
-        <i class="el-icon-info"></i>
-        <template #title>
-          <span>关于</span>
-        </template>
-      </el-menu-item>
-    </el-menu>
-    
-    <!-- 侧边栏底部 -->
-    <el-dropdown @command="handleUserCommand" trigger="click" class="app-sidebar__footer">
-      <div class="user-dropdown-trigger" role="button">
-        <el-avatar :size="40" :src="userState.avatar" class="sidebar-user-avatar" @error="handleAvatarError">
-          <i v-if="!userState.avatar" class="el-icon-user-solid"></i>
-          <span v-else>{{ userState.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
-        </el-avatar>
-        <div class="app-sidebar__user-info" v-if="!isCollapsed">
-          <div class="app-sidebar__username">{{ userState.username }}</div>
-          <div class="app-sidebar__user-role">{{ userState.email }}</div>
+    <aside class="app-sidebar">
+      <!-- 侧边栏标题 -->
+      <div class="app-sidebar__header">
+        <div class="app-sidebar__title">
+          <i class="el-icon-folder-opened"></i>
+          <el-button
+            type="primary"
+            @click="handleNewChat"
+            class="new-chat-btn"
+            size="small"
+          >
+            <i class="el-icon-circle-plus"></i>
+            开启新对话
+          </el-button>
         </div>
-        <i v-if="!isCollapsed" class="el-icon-arrow-down user-dropdown-arrow"></i>
+        <el-button
+          type="text"
+          @click="toggleCollapse"
+          class="app-sidebar__collapse-btn"
+          title="折叠菜单"
+        >
+          <i :class="isCollapsed ? 'el-icon-s-unfold' : 'el-icon-s-fold'"></i>
+        </el-button>
       </div>
-      <template #dropdown>
-        <el-dropdown-menu>
-          <el-dropdown-item command="profile">
-            <i class="el-icon-user"></i>
-            个人中心
-          </el-dropdown-item>
-          <el-dropdown-item command="settings">
-            <i class="el-icon-setting"></i>
-            系统设置
-          </el-dropdown-item>
-          <el-dropdown-item command="contact">
-            <i class="el-icon-phone"></i>
-            联系我们
-          </el-dropdown-item>
-          <el-dropdown-item command="logout" divided>
-            <i class="el-icon-switch-button"></i>
-            退出登录
-          </el-dropdown-item>
-        </el-dropdown-menu>
-      </template>
-    </el-dropdown>
-  </aside>
+
+      <!-- 导航菜单 -->
+      <el-menu
+        :default-active="activeMenu"
+        class="app-sidebar__menu"
+        router
+        :unique-opened="true"
+        :collapse="isCollapsed"
+        :collapse-transition="true"
+      >
+        <!-- 智能对话（默认页面） -->
+        <el-menu-item index="/chat">
+          <i class="el-icon-chat-dot-round"></i>
+          <template #title>
+            <span>智能对话</span>
+          </template>
+        </el-menu-item>
+
+        <!-- 文档列表 -->
+        <el-menu-item index="/documents">
+          <i class="el-icon-document-copy"></i>
+          <template #title>
+            <span>文档列表</span>
+          </template>
+        </el-menu-item>
+
+        <!-- 画布编排 -->
+        <el-menu-item index="/canvas">
+          <i class="el-icon-share"></i>
+          <template #title>
+            <span>画布</span>
+          </template>
+        </el-menu-item>
+
+        <!-- 知识图谱 -->
+        <el-menu-item index="/knowledge-graph">
+          <i class="el-icon-connection"></i>
+          <template #title>
+            <span>知识图谱</span>
+          </template>
+        </el-menu-item>
+
+        <!-- API接口测试 -->
+        <el-menu-item index="/api-test">
+          <i class="el-icon-s-cooperation"></i>
+          <template #title>
+            <span>API接口测试</span>
+          </template>
+        </el-menu-item>
+
+        <!-- 历史对话 -->
+        <el-menu-item index="/history">
+          <i class="el-icon-time"></i>
+          <template #title>
+            <span>历史对话</span>
+          </template>
+        </el-menu-item>
+
+        <!-- 设置 -->
+        <el-menu-item index="/settings">
+          <i class="el-icon-setting"></i>
+          <template #title>
+            <span>设置</span>
+          </template>
+        </el-menu-item>
+
+        <!-- 帮助 -->
+        <el-menu-item index="/help">
+          <i class="el-icon-question"></i>
+          <template #title>
+            <span>帮助</span>
+          </template>
+        </el-menu-item>
+
+        <!-- 关于 -->
+        <el-menu-item index="/about">
+          <i class="el-icon-info"></i>
+          <template #title>
+            <span>关于</span>
+          </template>
+        </el-menu-item>
+      </el-menu>
+
+      <!-- 侧边栏底部 -->
+      <el-dropdown @command="handleUserCommand" trigger="click" class="app-sidebar__footer">
+        <div class="user-dropdown-trigger" role="button">
+          <el-avatar :size="40" :src="userState.avatar" class="sidebar-user-avatar" @error="handleAvatarError">
+            <i v-if="!userState.avatar" class="el-icon-user-solid"></i>
+            <span v-else>{{ userState.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
+          </el-avatar>
+          <div class="app-sidebar__user-info" v-if="!isCollapsed">
+            <div class="app-sidebar__username">{{ userState.username }}</div>
+            <div class="app-sidebar__user-role">{{ userState.email }}</div>
+          </div>
+          <i v-if="!isCollapsed" class="el-icon-arrow-down user-dropdown-arrow"></i>
+        </div>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="profile">
+              <i class="el-icon-user"></i>
+              个人中心
+            </el-dropdown-item>
+            <el-dropdown-item command="settings">
+              <i class="el-icon-setting"></i>
+              系统设置
+            </el-dropdown-item>
+            <el-dropdown-item command="contact">
+              <i class="el-icon-phone"></i>
+              联系我们
+            </el-dropdown-item>
+            <el-dropdown-item command="logout" divided>
+              <i class="el-icon-switch-button"></i>
+              退出登录
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
+    </aside>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import userState, { logout as logoutUser, getToken } from '../utils/userStore.js'
@@ -140,12 +166,51 @@ const route = useRoute()
 const router = useRouter()
 
 const isCollapsed = ref(false)
+const isHidden = ref(false)
+const savedCollapsedState = ref(false)
+const isFullscreenPage = ref(false) // 标记当前是否在全屏页面
+
+// 从localStorage读取保存的状态
+onMounted(() => {
+  const savedCollapsed = localStorage.getItem('sidebarCollapsed')
+  if (savedCollapsed === 'true') {
+    isCollapsed.value = true
+    savedCollapsedState.value = true
+  }
+  // 不再从localStorage读取sidebarHidden，因为它应该由路由状态决定
+})
+
+// 监听路由变化，在知识图谱和画布页面自动隐藏侧边栏
+watch(() => route.path, (newPath) => {
+  const fullscreenPages = ['/knowledge-graph', '/canvas']
+  if (fullscreenPages.includes(newPath)) {
+    // 进入全屏页面，保存当前状态并隐藏侧边栏
+    isFullscreenPage.value = true
+    savedCollapsedState.value = isCollapsed.value
+    isHidden.value = true
+  } else {
+    // 离开全屏页面，恢复显示侧边栏
+    isFullscreenPage.value = false
+    isHidden.value = false
+  }
+}, { immediate: true })
+
+// 保存状态到localStorage（仅当用户手动操作时）
+watch(isCollapsed, (val) => {
+  localStorage.setItem('sidebarCollapsed', String(val))
+})
 
 // 头像加载失败处理
 const handleAvatarError = (e) => {
   return false
 }
 
+// 切换侧边栏显示/隐藏
+const toggleSidebar = () => {
+  isHidden.value = !isHidden.value
+}
+
+// 切换菜单折叠
 const toggleCollapse = () => {
   isCollapsed.value = !isCollapsed.value
 }
@@ -194,6 +259,23 @@ const handleUserCommand = async (command) => {
 </script>
 
 <style scoped>
+/* 侧边栏包装器 */
+.sidebar-wrapper {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar-wrapper--hidden {
+  width: 0;
+  overflow: visible; /* 改为visible确保toggle按钮不被裁剪 */
+}
+
+.sidebar-wrapper--hidden .app-sidebar {
+  margin-left: -220px;
+}
+
 .app-sidebar {
   width: 220px;
   background-color: var(--menu-background);
@@ -202,12 +284,95 @@ const handleUserCommand = async (command) => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  transition: var(--transition);
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
 }
 
 .app-sidebar:deep(.el-menu--collapse) {
   width: 64px;
+}
+
+/* 收缩/展开指示标 */
+.sidebar-toggle {
+  position: fixed;
+  left: 220px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 88px;
+  background: var(--card-background);
+  border: 1px solid var(--border-color);
+  border-left: none;
+  border-radius: 0 12px 12px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100; /* 降低z-index，避免覆盖对话框 */
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
+}
+
+.sidebar-toggle::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 40px;
+  background: var(--primary-color);
+  border-radius: 0 2px 2px 0;
+  transition: all 0.3s ease;
+}
+
+.sidebar-toggle:hover {
+  width: 28px;
+  box-shadow: 2px 0 16px rgba(79, 70, 229, 0.2);
+}
+
+.sidebar-toggle:hover::before {
+  height: 48px;
+  background: linear-gradient(180deg, var(--primary-color), var(--primary-color-light));
+}
+
+.sidebar-toggle--collapsed {
+  left: 0;
+  border-radius: 0 12px 12px 0;
+  background: var(--card-background);
+}
+
+.sidebar-toggle--collapsed::before {
+  right: 0;
+  left: auto;
+  border-radius: 2px 0 0 2px;
+}
+
+.sidebar-toggle--collapsed:hover {
+  width: 28px;
+  left: 0;
+}
+
+.sidebar-toggle__indicator {
+  color: var(--text-muted);
+  font-size: 16px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.sidebar-toggle:hover .sidebar-toggle__indicator {
+  color: var(--primary-color);
+  background: rgba(79, 70, 229, 0.1);
+}
+
+.sidebar-toggle--collapsed .sidebar-toggle__indicator {
+  transform: rotate(180deg);
 }
 
 .app-sidebar__header {
@@ -442,5 +607,19 @@ const handleUserCommand = async (command) => {
 .dark-theme .app-sidebar__footer :deep(.el-dropdown-item:hover) {
   background: var(--primary-gradient);
   color: white;
+}
+
+/* 深色主题下的指示标 */
+.dark-theme .sidebar-toggle {
+  background: linear-gradient(90deg, #1a1a2e, #16213e);
+  border-color: var(--border-color);
+}
+
+.dark-theme .sidebar-toggle:hover {
+  background: linear-gradient(90deg, var(--primary-color), #16213e);
+}
+
+.dark-theme .sidebar-toggle--collapsed {
+  background: linear-gradient(90deg, #16213e, var(--primary-color));
 }
 </style>
