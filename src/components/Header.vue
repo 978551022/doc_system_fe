@@ -3,13 +3,27 @@
     <div class="app-header__left">
       <!-- 系统标题 -->
       <div class="app-header__title" @click="goToChat">
-        <!-- 简约Logo -->
+        <!-- Logo -->
         <div class="app-header__logo">
           <div class="logo-icon">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="4" y="6" width="24" height="20" rx="3" fill="currentColor" opacity="0.2"/>
-              <rect x="7" y="9" width="18" height="14" rx="2" fill="currentColor"/>
-              <path d="M10 14h12M10 18h8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" class="logo-svg">
+              <!-- 背景圆 -->
+              <circle cx="20" cy="20" r="20" fill="url(#logoGradient)" opacity="0.1"/>
+              <!-- 外环 -->
+              <circle cx="20" cy="20" r="16" stroke="url(#logoGradient)" stroke-width="2" fill="none" opacity="0.3"/>
+              <!-- 动态环 -->
+              <circle class="logo-ring" cx="20" cy="20" r="16" stroke="url(#logoGradient)" stroke-width="2" fill="none" stroke-dasharray="80" stroke-dashoffset="20" stroke-linecap="round"/>
+              <!-- 文档图标 -->
+              <rect x="12" y="10" width="16" height="20" rx="2" fill="url(#logoGradient)"/>
+              <!-- 文档线条 -->
+              <path d="M15 16h10M15 20h7M15 24h5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+              <!-- 渐变定义 -->
+              <defs>
+                <linearGradient id="logoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="var(--primary-color)"/>
+                  <stop offset="100%" stop-color="var(--accent-color)"/>
+                </linearGradient>
+              </defs>
             </svg>
           </div>
         </div>
@@ -20,14 +34,23 @@
       </div>
     </div>
 
+    <!-- 中间搜索区域 -->
+    <div class="app-header__center">
+      <SearchBar />
+    </div>
+
     <!-- 右侧用户区域 -->
     <div class="app-header__right">
+      <!-- 通知中心 -->
+      <NotificationCenter />
       <el-dropdown @command="handleUserCommand" trigger="click">
         <div class="user-avatar-wrapper">
           <el-avatar :size="36" :src="cachedAvatar" class="user-avatar" @error="handleAvatarError">
             <i v-if="!userState.avatar" class="el-icon-user-solid"></i>
             <span v-else>{{ userState.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
           </el-avatar>
+          <!-- 在线状态指示点 -->
+          <span class="user-status-indicator"></span>
           <div class="user-info">
             <span class="user-name">{{ userState.username }}</span>
             <i class="el-icon-arrow-down"></i>
@@ -57,6 +80,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import userState, { logout as logoutUser, getToken } from '../utils/userStore.js'
 import { logout as logoutApi } from '../api/auth.js'
+import SearchBar from './SearchBar.vue'
+import NotificationCenter from './NotificationCenter.vue'
 
 const router = useRouter()
 
@@ -107,43 +132,49 @@ const handleUserCommand = async (command) => {
 </script>
 
 <style scoped>
+/* ========== 顶部导航栏主体 ========== */
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
-  height: 56px;
+  padding: 0 var(--spacing-6);
+  height: 60px;
   background: var(--card-background);
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-color);
   transition: var(--transition);
   position: relative;
-  z-index: 100;
+  z-index: var(--z-sticky);
   width: 100%;
   flex-shrink: 0;
+  gap: var(--spacing-6);
 }
 
-/* 深色主题下的顶部导航栏样式 */
-.dark-theme .app-header {
-  background: var(--card-background);
-  border-bottom-color: var(--border-color);
-}
-
+/* ========== 左侧区域 ========== */
 .app-header__left {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
 }
 
 .app-header__title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--spacing-3);
   cursor: pointer;
   transition: var(--transition);
 }
 
 .app-header__title:hover {
-  opacity: 0.85;
+  opacity: 0.9;
+}
+
+.app-header__title:hover .logo-icon {
+  transform: scale(1.05);
+}
+
+.app-header__title:hover .logo-ring {
+  stroke-dashoffset: 0;
 }
 
 .app-header__logo {
@@ -152,8 +183,8 @@ const handleUserCommand = async (command) => {
 }
 
 .logo-icon {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -161,9 +192,47 @@ const handleUserCommand = async (command) => {
   transition: var(--transition);
 }
 
-.logo-icon svg {
-  width: 32px;
-  height: 32px;
+.logo-svg {
+  width: 40px;
+  height: 40px;
+}
+
+/* Logo 动态环动画 */
+.logo-ring {
+  transform-origin: center;
+  animation: logo-ring-rotate 10s linear infinite;
+}
+
+@keyframes logo-ring-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Logo 脉冲效果 */
+.logo-icon::after {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--primary-color) 0%, transparent 70%);
+  opacity: 0;
+  animation: logo-pulse 3s ease-in-out infinite;
+}
+
+@keyframes logo-pulse {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.15;
+    transform: scale(1.1);
+  }
 }
 
 .app-header__brand {
@@ -174,26 +243,39 @@ const handleUserCommand = async (command) => {
 
 .app-header__title h1 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: var(--line-height-tight);
   color: var(--text-primary);
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .app-header__subtitle {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
   color: var(--text-muted);
-  letter-spacing: 0.02em;
+  letter-spacing: var(--letter-spacing-wide);
   line-height: 1;
 }
 
-/* 右侧用户区域 */
+/* ========== 中间搜索区域 ========== */
+.app-header__center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  max-width: 500px;
+}
+
+/* ========== 右侧用户区域 ========== */
 .app-header__right {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
 }
 
 .user-avatar-wrapper {
@@ -203,11 +285,12 @@ const handleUserCommand = async (command) => {
   cursor: pointer;
   padding: 6px 12px;
   border-radius: var(--radius-md);
-  transition: var(--transition-fast);
+  transition: var(--transition);
+  position: relative;
 }
 
 .user-avatar-wrapper:hover {
-  background-color: var(--surface-color);
+  background-color: var(--menu-item-hover);
 }
 
 .user-avatar {
@@ -215,10 +298,25 @@ const handleUserCommand = async (command) => {
   color: white;
   border: 2px solid var(--border-color);
   transition: var(--transition);
+  position: relative;
 }
 
 .user-avatar:hover {
   transform: scale(1.05);
+  border-color: var(--primary-color);
+}
+
+/* 在线状态指示点 */
+.user-status-indicator {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  background: var(--success-color);
+  border: 2px solid var(--card-background);
+  border-radius: 50%;
+  pointer-events: none;
 }
 
 .user-info {
@@ -238,5 +336,53 @@ const handleUserCommand = async (command) => {
   font-size: 12px;
   color: var(--text-muted);
   transition: var(--transition);
+}
+
+/* ========== 下拉菜单样式 ========== */
+.app-header__right :deep(.el-dropdown-menu) {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+  padding: 6px 0;
+  background: var(--card-background);
+}
+
+.app-header__right :deep(.el-dropdown-item) {
+  padding: 10px 16px;
+  font-size: 13px;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: var(--radius-sm);
+  margin: 2px 6px;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.app-header__right :deep(.el-dropdown-item:hover) {
+  background: var(--primary-gradient);
+  color: white;
+}
+
+.app-header__right :deep(.el-dropdown-item i) {
+  font-size: 15px;
+  width: 18px;
+  text-align: center;
+}
+
+/* ========== 深色模式适配 ========== */
+.dark-theme .app-header__right :deep(.el-dropdown-menu) {
+  background: var(--card-background);
+  border-color: var(--border-color);
+}
+
+.dark-theme .app-header__right :deep(.el-dropdown-item) {
+  color: var(--text-primary);
+}
+
+.dark-theme .app-header__right :deep(.el-dropdown-item:hover) {
+  background: var(--primary-gradient);
+  color: white;
 }
 </style>

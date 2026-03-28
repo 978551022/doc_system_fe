@@ -62,7 +62,8 @@ export const useNamespaceStore = defineStore('knowledgeGraph/namespace', () => {
     try {
       const response = await getNamespaceList(userId)
       if (response.code === 200) {
-        namespaces.value = response.data?.namespaces || []
+        // API返回data直接是数组，不是 {namespaces: []} 格式
+        namespaces.value = Array.isArray(response.data) ? response.data : []
 
         // 如果当前命名空间存在，更新其数据
         if (currentNamespace.value) {

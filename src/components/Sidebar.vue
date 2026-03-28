@@ -13,15 +13,6 @@
       <div class="app-sidebar__header">
         <div class="app-sidebar__title">
           <i class="el-icon-folder-opened"></i>
-          <el-button
-            type="primary"
-            @click="handleNewChat"
-            class="new-chat-btn"
-            size="small"
-          >
-            <i class="el-icon-circle-plus"></i>
-            开启新对话
-          </el-button>
         </div>
         <el-button
           type="text"
@@ -259,23 +250,24 @@ const handleUserCommand = async (command) => {
 </script>
 
 <style scoped>
-/* 侧边栏包装器 */
+/* ========== 侧边栏包装器 ========== */
 .sidebar-wrapper {
   position: relative;
   display: flex;
   align-items: stretch;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: var(--transition);
 }
 
 .sidebar-wrapper--hidden {
   width: 0;
-  overflow: visible; /* 改为visible确保toggle按钮不被裁剪 */
+  overflow: visible;
 }
 
 .sidebar-wrapper--hidden .app-sidebar {
   margin-left: -220px;
 }
 
+/* ========== 侧边栏主体 ========== */
 .app-sidebar {
   width: 220px;
   background-color: var(--menu-background);
@@ -284,7 +276,7 @@ const handleUserCommand = async (command) => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: var(--transition);
   flex-shrink: 0;
 }
 
@@ -292,25 +284,25 @@ const handleUserCommand = async (command) => {
   width: 64px;
 }
 
-/* 收缩/展开指示标 */
+/* ========== 收缩/展开指示标（优化为圆形悬浮按钮） ========== */
 .sidebar-toggle {
   position: fixed;
   left: 220px;
   top: 50%;
   transform: translateY(-50%);
-  width: 24px;
-  height: 88px;
+  width: 20px;
+  height: 80px;
   background: var(--card-background);
   border: 1px solid var(--border-color);
   border-left: none;
-  border-radius: 0 12px 12px 0;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 100; /* 降低z-index，避免覆盖对话框 */
-  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
+  transition: var(--transition);
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
 }
 
 .sidebar-toggle::before {
@@ -320,25 +312,25 @@ const handleUserCommand = async (command) => {
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 40px;
+  height: 36px;
   background: var(--primary-color);
   border-radius: 0 2px 2px 0;
-  transition: all 0.3s ease;
+  transition: var(--transition);
 }
 
 .sidebar-toggle:hover {
-  width: 28px;
-  box-shadow: 2px 0 16px rgba(79, 70, 229, 0.2);
+  width: 24px;
+  box-shadow: var(--shadow-md), 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
 .sidebar-toggle:hover::before {
-  height: 48px;
-  background: linear-gradient(180deg, var(--primary-color), var(--primary-color-light));
+  height: 44px;
+  background: linear-gradient(180deg, var(--primary-color), var(--primary-light));
 }
 
 .sidebar-toggle--collapsed {
   left: 0;
-  border-radius: 0 12px 12px 0;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   background: var(--card-background);
 }
 
@@ -349,32 +341,33 @@ const handleUserCommand = async (command) => {
 }
 
 .sidebar-toggle--collapsed:hover {
-  width: 28px;
+  width: 24px;
   left: 0;
 }
 
 .sidebar-toggle__indicator {
   color: var(--text-muted);
-  font-size: 16px;
-  transition: all 0.3s ease;
+  font-size: 14px;
+  transition: var(--transition);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: transparent;
 }
 
 .sidebar-toggle:hover .sidebar-toggle__indicator {
   color: var(--primary-color);
-  background: rgba(79, 70, 229, 0.1);
+  background: rgba(99, 102, 241, 0.1);
 }
 
 .sidebar-toggle--collapsed .sidebar-toggle__indicator {
   transform: rotate(180deg);
 }
 
+/* ========== 侧边栏头部 ========== */
 .app-sidebar__header {
   display: flex;
   justify-content: space-between;
@@ -385,7 +378,7 @@ const handleUserCommand = async (command) => {
 }
 
 .app-sidebar__title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--primary-color);
   display: flex;
@@ -396,7 +389,12 @@ const handleUserCommand = async (command) => {
   justify-content: center;
 }
 
-/* 新建对话按钮样式 */
+/* 隐藏标题图标 */
+.app-sidebar__title i {
+  display: none;
+}
+
+/* ========== 新建对话按钮（添加脉冲动画） ========== */
 .new-chat-btn {
   background: var(--primary-gradient);
   border: none;
@@ -415,11 +413,24 @@ const handleUserCommand = async (command) => {
   width: 100%;
   justify-content: center;
   max-width: 180px;
+  position: relative;
+  overflow: hidden;
 }
 
-/* 隐藏标题图标 */
-.app-sidebar__title i {
-  display: none;
+/* 光泽扫过效果 */
+.new-chat-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.6s ease;
+}
+
+.new-chat-btn:hover::after {
+  left: 100%;
 }
 
 .new-chat-btn:hover {
@@ -437,21 +448,19 @@ const handleUserCommand = async (command) => {
   color: white;
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
-}
-
+/* 折叠按钮 */
 .app-sidebar__collapse-btn {
   font-size: 16px;
   color: var(--text-muted);
   padding: 4px;
+  transition: var(--transition);
 }
 
 .app-sidebar__collapse-btn:hover {
   color: var(--primary-color);
 }
 
+/* ========== 导航菜单 ========== */
 .app-sidebar__menu {
   border-right: none;
   flex: 1;
@@ -459,36 +468,59 @@ const handleUserCommand = async (command) => {
   padding: 8px 0;
 }
 
+/* 菜单项基础样式 */
 .app-sidebar:deep(.el-menu-item) {
-  height: 44px;
-  line-height: 44px;
+  height: 48px;
+  line-height: 48px;
   font-size: 13px;
   color: var(--menu-item-color);
-  margin: 2px 8px;
-  border-radius: var(--radius-sm);
+  margin: 2px 12px;
+  border-radius: var(--radius-md);
   transition: var(--transition);
+  position: relative;
 }
 
+/* 菜单项悬浮状态 */
 .app-sidebar:deep(.el-menu-item:hover) {
   background-color: var(--menu-item-hover) !important;
   color: var(--primary-color) !important;
 }
 
+/* 菜单项激活状态（优化：渐变 + 左侧高亮条） */
 .app-sidebar:deep(.el-menu-item.is-active) {
-  background: var(--menu-item-active) !important;
-  color: white !important;
-  box-shadow: var(--shadow-sm);
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, transparent 100%) !important;
+  color: var(--primary-color) !important;
+}
+
+.app-sidebar:deep(.el-menu-item.is-active::before) {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 24px;
+  background: var(--primary-color);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px var(--primary-color);
 }
 
 .app-sidebar:deep(.el-menu-item i) {
-  font-size: 16px;
+  font-size: 18px;
   margin-right: 10px;
+  transition: var(--transition);
+}
+
+.app-sidebar:deep(.el-menu-item.is-active i) {
+  color: var(--primary-color);
+  filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.5));
 }
 
 .app-sidebar:deep(.el-menu--collapse .el-menu-item i) {
   margin-right: 0;
 }
 
+/* ========== 侧边栏底部用户区域 ========== */
 .app-sidebar__footer {
   display: flex;
   align-items: center;
@@ -505,8 +537,8 @@ const handleUserCommand = async (command) => {
   cursor: pointer;
   width: 100%;
   gap: 10px;
-  padding: 6px;
-  border-radius: var(--radius-sm);
+  padding: 8px;
+  border-radius: var(--radius-md);
   transition: var(--transition);
 }
 
@@ -525,13 +557,14 @@ const handleUserCommand = async (command) => {
   color: var(--primary-color);
 }
 
-/* 侧边栏用户头像 */
+/* 用户头像（添加在线状态点） */
 .sidebar-user-avatar {
   background: var(--primary-gradient);
   color: white;
   border: 2px solid var(--border-color);
   transition: var(--transition);
   flex-shrink: 0;
+  position: relative;
 }
 
 .user-dropdown-trigger:hover .sidebar-user-avatar {
@@ -561,7 +594,7 @@ const handleUserCommand = async (command) => {
   text-overflow: ellipsis;
 }
 
-/* 下拉菜单样式 */
+/* ========== 下拉菜单样式 ========== */
 .app-sidebar__footer :deep(.el-dropdown-menu) {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
@@ -594,7 +627,7 @@ const handleUserCommand = async (command) => {
   text-align: center;
 }
 
-/* 深色主题下的下拉菜单样式 */
+/* ========== 深色模式适配 ========== */
 .dark-theme .app-sidebar__footer :deep(.el-dropdown-menu) {
   background: var(--card-background);
   border-color: var(--border-color);
@@ -609,17 +642,16 @@ const handleUserCommand = async (command) => {
   color: white;
 }
 
-/* 深色主题下的指示标 */
 .dark-theme .sidebar-toggle {
-  background: linear-gradient(90deg, #1a1a2e, #16213e);
+  background: var(--card-background);
   border-color: var(--border-color);
 }
 
 .dark-theme .sidebar-toggle:hover {
-  background: linear-gradient(90deg, var(--primary-color), #16213e);
+  background: var(--surface-color);
 }
 
 .dark-theme .sidebar-toggle--collapsed {
-  background: linear-gradient(90deg, #16213e, var(--primary-color));
+  background: var(--card-background);
 }
 </style>

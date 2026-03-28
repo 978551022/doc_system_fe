@@ -52,28 +52,6 @@
           @change="handleDeepReasoningChange"
           class="deep-reasoning-switch"
         ></el-switch>
-        
-        <!-- 新建对话按钮 -->
-        <el-button 
-          type="text" 
-          size="large"
-          title="新建对话"
-          @click="handleNewChat"
-          class="new-chat-btn"
-        >
-          <i class="el-icon-plus"></i>
-        </el-button>
-        
-        <!-- 历史记录按钮 -->
-        <el-button 
-          type="text" 
-          size="large"
-          title="历史记录"
-          @click="handleHistoryClick"
-          class="history-btn"
-        >
-          <i class="el-icon-time"></i>
-        </el-button>
       </div>
       
       <!-- 历史记录弹窗 -->
@@ -219,9 +197,10 @@
 </template>
 
 <script setup>
-import { ref, defineEmits, watch } from 'vue'
+import { ref, defineEmits, watch, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import VoiceRecorder from './VoiceRecorder.vue'
+import { chatConfig, migrateOldConfig, initChatConfig } from '../utils/chatConfig.js'
 
 // 定义事件
 const emit = defineEmits(['sendMessage', 'uploadFile', 'modelChange', 'newChat', 'loadHistory', 'deleteHistory', 'pauseGeneration', 'voiceMessageReady', 'voiceChunk', 'voiceComplete', 'voiceUploadComplete', 'recordingStateChanged', 'audioDataAvailable', 'initializeConversation', 'conversationIdUpdate', 'voiceAborted'])
@@ -265,6 +244,35 @@ watch(
   }
 )
 
+// 初始化配置（迁移旧数据）
+onMounted(() => {
+  initChatConfig()
+})
+
+// 监听配置变化（来自其他组件的修改）
+let unsubscribeConfigChange = null
+
+onMounted(() => {
+  unsubscribeConfigChange = chatConfig.onChange((config) => {
+    // 同步配置到本地状态
+    if (config.onlineSearch !== undefined) {
+      isInternetSearchEnabled.value = config.onlineSearch
+    }
+    if (config.deepReasoning !== undefined) {
+      isDeepReasoningEnabled.value = config.deepReasoning
+    }
+    if (config.selectedModel !== undefined) {
+      selectedModel.value = config.selectedModel
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (unsubscribeConfigChange) {
+    unsubscribeConfigChange()
+  }
+})
+
 // 输入消息
 const inputMessage = ref('')
 
@@ -290,38 +298,14 @@ const models = ref([
   { id: 'llama3', name: 'Llama 3', icon: 'el-icon-chat-dot-round' }
 ])
 
-// 当前选中的模型（使用 prop 默认值）
-const selectedModel = ref(props.currentModel)
+// 当前选中的模型（使用统一配置）
+const selectedModel = ref(chatConfig.get('selectedModel'))
 
-// localStorage 配置管理工具函数
-const loadConfig = (key, defaultValue = false) => {
-  try {
-    const raw = localStorage.getItem('chatConfig')
-    if (!raw) return defaultValue
-    const parsed = JSON.parse(raw)
-    return !!parsed[key]
-  } catch (error) {
-    console.error(`加载配置失败 [${key}]:`, error)
-    return defaultValue
-  }
-}
+// 联网搜索开关状态（使用统一配置）
+const isInternetSearchEnabled = ref(chatConfig.get('onlineSearch'))
 
-const updateConfig = (key, value) => {
-  try {
-    const raw = localStorage.getItem('chatConfig')
-    const parsed = raw ? JSON.parse(raw) : {}
-    parsed[key] = !!value
-    localStorage.setItem('chatConfig', JSON.stringify(parsed))
-  } catch (error) {
-    console.error(`保存配置失败 [${key}]:`, error)
-  }
-}
-
-// 联网搜索开关状态
-const isInternetSearchEnabled = ref(loadConfig('isInternetSearchEnabled'))
-
-// 深度推理开关状态
-const isDeepReasoningEnabled = ref(loadConfig('isDeepReasoningEnabled'))
+// 深度推理开关状态（使用统一配置）
+const isDeepReasoningEnabled = ref(chatConfig.get('deepReasoning'))
 
 // 历史记录弹窗显示状态
 const showHistoryDialog = ref(false)
@@ -332,37 +316,21 @@ const chatHistory = ref([])
 // 处理模型选择（下拉列表）
 const handleModelChange = (modelId) => {
   const modelName = models.value.find(m => m.id === modelId)?.name
+  // 使用统一配置管理保存
+  chatConfig.set('selectedModel', modelId)
   // 发送模型切换事件给父组件
   emit('modelChange', modelId)
 }
 
 // 处理联网搜索开关变化
 const handleInternetSearchChange = (value) => {
-  updateConfig('isInternetSearchEnabled', value)
+  chatConfig.set('onlineSearch', value)
 }
 
 // 深度推理开关变化
 const handleDeepReasoningChange = (value) => {
-  updateConfig('isDeepReasoningEnabled', value)
+  chatConfig.set('deepReasoning', value)
 }
-
-// 监听 localStorage 的变化，同步回本地状态
-watch(
-  () => {
-    try {
-      const raw = localStorage.getItem('chatConfig')
-      if (!raw) return { isInternetSearchEnabled: false, isDeepReasoningEnabled: false }
-      return JSON.parse(raw)
-    } catch {
-      return { isInternetSearchEnabled: false, isDeepReasoningEnabled: false }
-    }
-  },
-  (config) => {
-    isInternetSearchEnabled.value = !!config.isInternetSearchEnabled
-    isDeepReasoningEnabled.value = !!config.isDeepReasoningEnabled
-  },
-  { deep: true, immediate: true }
-)
 
 // 处理新建对话
 const handleNewChat = () => {
@@ -586,7 +554,7 @@ defineExpose({
   padding: 4px 10px;
 }
 
-/* 功能图标栏样式 */
+/* ========== 功能图标栏 ========== */
 .chat-input__tools {
   display: flex;
   align-items: center;
@@ -609,6 +577,7 @@ defineExpose({
   background-color: var(--surface-color);
 }
 
+/* ========== 输入框包装器 ========== */
 .chat-input__wrapper {
   display: flex;
   align-items: center;
@@ -634,7 +603,7 @@ defineExpose({
 .chat-input__textarea :deep(.el-textarea__inner) {
   border: none;
   background: transparent;
-  min-height: 48px;
+  min-height: var(--input-min-height);
   padding: 8px 12px;
   font-size: 14px;
   line-height: 1.5;
@@ -652,7 +621,7 @@ defineExpose({
   color: var(--text-muted);
 }
 
-/* 发送按钮 */
+/* ========== 发送按钮 ========== */
 .chat-input :deep(.el-button--primary) {
   background: var(--primary-gradient);
   border: none;
@@ -675,14 +644,14 @@ defineExpose({
   color: var(--text-muted);
 }
 
-/* 暂停按钮 - 类似手机录像按钮（红色圆形） */
+/* ========== 暂停按钮 ========== */
 .pause-btn {
-  background: #ef4444 !important;
+  background: var(--error-color) !important;
   border: none !important;
   border-radius: 50% !important;
-  width: 44px !important;
-  height: 44px !important;
-  min-width: 44px !important;
+  width: var(--button-size-lg) !important;
+  height: var(--button-size-lg) !important;
+  min-width: var(--button-size-lg) !important;
   padding: 0 !important;
   transition: var(--transition) !important;
   display: flex;
@@ -707,25 +676,24 @@ defineExpose({
   fill: white;
 }
 
-/* 暗色主题下的暂停按钮 */
+/* 深色模式下的暂停按钮 */
 .dark-theme .pause-btn {
   background: #f87171 !important;
   box-shadow: 0 4px 12px rgba(248, 113, 113, 0.35);
 }
 
 .dark-theme .pause-btn:hover {
-  background: #ef4444 !important;
+  background: var(--error-color) !important;
   box-shadow: 0 6px 16px rgba(239, 68, 68, 0.45);
 }
 
-/* 发送按钮 */
 .send-btn {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-/* 上传按钮 */
+/* ========== 上传按钮 ========== */
 .chat-input__upload-btn {
   color: var(--text-secondary) !important;
   font-size: 13px !important;
@@ -747,13 +715,13 @@ defineExpose({
   color: var(--text-muted);
 }
 
-/* 模型选择器 */
+/* ========== 模型选择器 ========== */
 .model-selector-wrapper {
   margin-right: 12px;
 }
 
 .model-selector {
-  width: 160px;
+  width: var(--selector-width-md);
   font-size: 13px;
 }
 
@@ -762,7 +730,7 @@ defineExpose({
   border: 1px solid var(--border-color);
   transition: var(--transition);
   background: var(--card-background);
-  height: 36px;
+  height: var(--input-height-md);
 }
 
 .model-selector :deep(.el-select__wrapper:hover) {
@@ -801,14 +769,14 @@ defineExpose({
   color: white;
 }
 
-/* ========== 功能开关通用样式 ========== */
+/* ========== 功能开关通用样式（使用 CSS 变量） ========== */
 .internet-search-switch,
 .deep-reasoning-switch {
   margin-right: 12px;
   background: transparent !important;
 }
 
-/* 确保开关组件本身没有额外背景 */
+/* 开关容器 */
 .internet-search-switch :deep(.el-switch),
 .deep-reasoning-switch :deep(.el-switch) {
   background: transparent !important;
@@ -820,55 +788,46 @@ defineExpose({
   color: var(--text-secondary);
   font-size: 13px;
   font-weight: 500;
-  transition: color 0.25s ease;
+  transition: var(--transition);
   background: transparent !important;
 }
 
-/* 开启时文字变紫色 */
+/* 开关激活时的文字颜色 - 使用 CSS 变量 */
 .internet-search-switch :deep(.el-switch__label.is-active),
 .deep-reasoning-switch :deep(.el-switch__label.is-active) {
-  color: #8b5cf6;
+  color: var(--switch-active-text);
   font-weight: 600;
   background: transparent !important;
 }
 
-/* 开关主体 - 使用 CSS 变量自适应主题 */
+/* 开关主体 - 使用 CSS 变量 */
 .internet-search-switch :deep(.el-switch__core),
 .deep-reasoning-switch :deep(.el-switch__core) {
-  width: 40px;
-  height: 24px;
-  border-radius: 12px;
-  background-color: var(--border-color) !important;
-  border: 1px solid var(--border-color) !important;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  border-radius: var(--radius-full);
+  background-color: var(--border-color);
+  border: 1px solid var(--border-color);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: var(--transition);
   position: relative;
 }
 
-/* 开关滑块 */
+/* 开关滑块 - 使用 CSS 变量 */
 .internet-search-switch :deep(.el-switch__core:after),
 .deep-reasoning-switch :deep(.el-switch__core:after) {
-  width: 20px;
-  height: 20px;
+  width: var(--switch-thumb-size);
+  height: var(--switch-thumb-size);
   top: 1px;
   left: 1px;
   border-radius: 50%;
-  background-color: var(--card-background) !important;
-  border: 1px solid var(--border-color) !important;
+  background-color: var(--card-background);
+  border: 1px solid var(--border-color);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: var(--transition);
 }
 
-/* 选中状态 - 紫色背景填充（使用多重选择器确保覆盖） */
-.internet-search-switch :deep(.el-switch__core),
-.deep-reasoning-switch :deep(.el-switch__core) {
-  background-color: var(--border-color) !important;
-  border-color: var(--border-color) !important;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* 当开关被选中时 */
+/* 开关选中状态 - 使用 CSS 变量 */
 .internet-search-switch :deep(.el-switch.is-checked),
 .deep-reasoning-switch :deep(.el-switch.is-checked) {
   background-color: transparent !important;
@@ -876,108 +835,60 @@ defineExpose({
 
 .internet-search-switch :deep(.el-switch.is-checked .el-switch__core),
 .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: rgba(139, 92, 246, 0.4) !important;
-  border-color: rgba(139, 92, 246, 0.6) !important;
+  background-color: var(--switch-active-bg);
+  border-color: var(--switch-active-border);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-}
-
-/* 额外的覆盖规则，针对 Element Plus 的可能结构 */
-.internet-search-switch[class] :deep(.el-switch__core),
-.deep-reasoning-switch[class] :deep(.el-switch__core) {
-  background-color: var(--border-color) !important;
-}
-
-.internet-search-switch[class].is-checked :deep(.el-switch__core),
-.deep-reasoning-switch[class].is-checked :deep(.el-switch__core) {
-  background-color: rgba(139, 92, 246, 0.4) !important;
-  border-color: rgba(139, 92, 246, 0.6) !important;
 }
 
 .internet-search-switch :deep(.el-switch.is-checked .el-switch__core:after),
 .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core:after) {
-  left: calc(100% - 21px);
-  background-color: var(--card-background) !important;
-  border-color: var(--border-color) !important;
+  left: calc(100% - var(--switch-thumb-size) - 1px);
+  background-color: var(--card-background);
+  border-color: var(--border-color);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
-/* hover 效果 - 只改变边框颜色和阴影 */
+/* 开关 hover 效果 - 使用 CSS 变量 */
 .internet-search-switch:hover :deep(.el-switch__core),
 .deep-reasoning-switch:hover :deep(.el-switch__core) {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 3px rgba(139, 92, 246, 0.1);
-  border-color: rgba(139, 92, 246, 0.3) !important;
+  border-color: rgba(139, 92, 246, 0.3);
 }
 
 .internet-search-switch:hover :deep(.el-switch.is-checked .el-switch__core),
 .deep-reasoning-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: rgba(139, 92, 246, 0.5) !important;
+  background-color: rgba(139, 92, 246, 0.5);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 3px rgba(139, 92, 246, 0.15);
-  border-color: rgba(139, 92, 246, 0.7) !important;
-}
-
-/* ========== 深色模式适配 ========== */
-
-/* 深色模式下的文字颜色 */
-.dark-theme .internet-search-switch :deep(.el-switch__label.is-active),
-.dark-theme .deep-reasoning-switch :deep(.el-switch__label.is-active) {
-  color: #a78bfa;
-}
-
-/* 深色模式确保背景色正确 */
-.dark-theme .internet-search-switch :deep(.el-switch__core),
-.dark-theme .deep-reasoning-switch :deep(.el-switch__core) {
-  background-color: var(--border-color) !important;
-  border-color: var(--border-color) !important;
-}
-
-.dark-theme .internet-search-switch :deep(.el-switch__core:after),
-.dark-theme .deep-reasoning-switch :deep(.el-switch__core:after) {
-  background-color: var(--card-background) !important;
-  border-color: var(--border-color) !important;
-}
-
-/* 深色模式选中状态 */
-.dark-theme .internet-search-switch :deep(.el-switch.is-checked .el-switch__core),
-.dark-theme .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core),
-.dark-theme .internet-search-switch[class].is-checked :deep(.el-switch__core),
-.dark-theme .deep-reasoning-switch[class].is-checked :deep(.el-switch__core) {
-  background-color: rgba(167, 139, 250, 0.45) !important;
-  border-color: rgba(167, 139, 250, 0.65) !important;
-}
-
-.dark-theme .internet-search-switch :deep(.el-switch.is-checked .el-switch__core:after),
-.dark-theme .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core:after) {
-  background-color: var(--card-background) !important;
-  border-color: var(--border-color) !important;
+  border-color: rgba(139, 92, 246, 0.7);
 }
 
 /* 深色模式下的 hover 效果 */
 .dark-theme .internet-search-switch:hover :deep(.el-switch__core),
 .dark-theme .deep-reasoning-switch:hover :deep(.el-switch__core) {
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(167, 139, 250, 0.12);
-  border-color: rgba(167, 139, 250, 0.3) !important;
-  background-color: var(--border-color) !important;
+  border-color: rgba(167, 139, 250, 0.3);
+  background-color: var(--border-color);
 }
 
 .dark-theme .internet-search-switch:hover :deep(.el-switch.is-checked .el-switch__core),
 .dark-theme .deep-reasoning-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: rgba(167, 139, 250, 0.55) !important;
+  background-color: rgba(167, 139, 250, 0.55);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(167, 139, 250, 0.18);
-  border-color: rgba(167, 139, 250, 0.75) !important;
+  border-color: rgba(167, 139, 250, 0.75);
 }
 
-/* 响应式设计 */
+/* ========== 响应式设计 ========== */
 @media (max-width: 768px) {
   .chat-input__container {
     padding: 0 12px;
   }
-  
+
   .chat-input__wrapper {
     padding: 8px 10px;
   }
-  
+
   .model-selector {
-    width: 120px;
+    width: var(--selector-width-sm);
   }
 }
 </style>

@@ -1,0 +1,394 @@
+/**
+ * ============================================================
+ * 设计令牌系统 (Design Tokens)
+ * ============================================================
+ * 统一管理所有设计变量，确保一致性和可维护性
+ * 包含：颜色、间距、字体、圆角、阴影、动画、层级等
+ * ============================================================
+ */
+
+:root {
+  /* ============================================================
+   * 色彩系统 - Color System
+   * ============================================================ */
+
+  /* === 主色系 (Primary - Indigo) === */
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+
+  /* === 辅助色系 (Accent - Cyan) === */
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-200: #a5f3fc;
+  --color-accent-300: #67e8f9;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #06b6d4;
+  --color-accent-600: #0891b2;
+  --color-accent-700: #0e7490;
+  --color-accent-800: #155e75;
+  --color-accent-900: #164e63;
+
+  /* === 成功色系 (Success - Emerald) === */
+  --color-success-50: #ecfdf5;
+  --color-success-100: #d1fae5;
+  --color-success-200: #a7f3d0;
+  --color-success-300: #6ee7b7;
+  --color-success-400: #34d399;
+  --color-success-500: #10b981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+  --color-success-800: #065f46;
+  --color-success-900: #064e3b;
+
+  /* === 警告色系 (Warning - Amber) === */
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+
+  /* === 错误色系 (Error - Red) === */
+  --color-error-50: #fef2f2;
+  --color-error-100: #fee2e2;
+  --color-error-200: #fecaca;
+  --color-error-300: #fca5a5;
+  --color-error-400: #f87171;
+  --color-error-500: #ef4444;
+  --color-error-600: #dc2626;
+  --color-error-700: #b91c1c;
+  --color-error-800: #991b1b;
+  --color-error-900: #7f1d1d;
+
+  /* === 中性色系 (Gray) === */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+
+  /* === 语义化颜色映射 (浅色模式) === */
+  --primary-color: var(--color-primary-600);
+  --primary-hover: var(--color-primary-700);
+  --primary-light: var(--color-primary-400);
+  --primary-gradient: linear-gradient(135deg, var(--color-primary-600) 0%, var(--color-primary-700) 100%);
+
+  --accent-color: var(--color-accent-500);
+  --accent-gradient: linear-gradient(135deg, var(--color-accent-400) 0%, var(--color-accent-600) 100%);
+
+  --success-color: var(--color-success-500);
+  --warning-color: var(--color-warning-500);
+  --error-color: var(--color-error-500);
+
+  --background-color: var(--color-gray-50);
+  --surface-color: var(--color-gray-100);
+  --card-background: #ffffff;
+  --card-header-background: #ffffff;
+
+  --text-primary: var(--color-gray-800);
+  --text-secondary: var(--color-gray-600);
+  --text-muted: var(--color-gray-500);
+
+  --border-color: var(--color-gray-200);
+  --border-hover: var(--color-gray-300);
+
+  --menu-background: #ffffff;
+  --menu-item-color: var(--color-gray-600);
+  --menu-item-hover: var(--color-gray-100);
+  --menu-item-active: var(--primary-gradient);
+
+  --input-background: #ffffff;
+  --input-border: var(--color-gray-200);
+  --input-placeholder: var(--color-gray-400);
+
+  /* ============================================================
+   * 间距系统 - Spacing Scale (基于 4px 网格)
+   * ============================================================ */
+  --spacing-0: 0;
+  --spacing-1: 0.25rem;   /* 4px */
+  --spacing-2: 0.5rem;    /* 8px */
+  --spacing-3: 0.75rem;   /* 12px */
+  --spacing-4: 1rem;      /* 16px */
+  --spacing-5: 1.25rem;   /* 20px */
+  --spacing-6: 1.5rem;    /* 24px */
+  --spacing-7: 1.75rem;   /* 28px */
+  --spacing-8: 2rem;      /* 32px */
+  --spacing-10: 2.5rem;   /* 40px */
+  --spacing-12: 3rem;     /* 48px */
+  --spacing-16: 4rem;     /* 64px */
+  --spacing-20: 5rem;     /* 80px */
+  --spacing-24: 6rem;     /* 96px */
+
+  /* ============================================================
+   * 字体系统 - Typography
+   * ============================================================ */
+
+  /* === 字体族 === */
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+
+  /* === 字体大小 === */
+  --font-size-xs: 0.75rem;     /* 12px */
+  --font-size-sm: 0.875rem;    /* 14px */
+  --font-size-base: 1rem;      /* 16px */
+  --font-size-lg: 1.125rem;    /* 18px */
+  --font-size-xl: 1.25rem;     /* 20px */
+  --font-size-2xl: 1.5rem;     /* 24px */
+  --font-size-3xl: 1.875rem;   /* 30px */
+  --font-size-4xl: 2.25rem;    /* 36px */
+  --font-size-5xl: 3rem;       /* 48px */
+
+  /* === 字重 === */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* === 行高 === */
+  --line-height-none: 1;
+  --line-height-tight: 1.25;
+  --line-height-snug: 1.375;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* === 字母间距 === */
+  --letter-spacing-tighter: -0.05em;
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+  --letter-spacing-wider: 0.05em;
+  --letter-spacing-widest: 0.1em;
+
+  /* ============================================================
+   * 圆角系统 - Border Radius
+   * ============================================================ */
+  --radius-none: 0;
+  --radius-sm: 0.25rem;    /* 4px */
+  --radius-md: 0.625rem;   /* 10px */
+  --radius-lg: 1rem;       /* 16px */
+  --radius-xl: 1.5rem;     /* 24px */
+  --radius-2xl: 2rem;      /* 32px */
+  --radius-full: 9999px;
+
+  /* ============================================================
+   * 阴影系统 - Box Shadow
+   * ============================================================ */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.16), 0 8px 16px rgba(0, 0, 0, 0.08);
+  --shadow-2xl: 0 24px 64px rgba(0, 0, 0, 0.2), 0 12px 24px rgba(0, 0, 0, 0.1);
+  --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.06);
+
+  /* 彩色阴影 */
+  --shadow-primary: 0 4px 12px rgba(99, 102, 241, 0.25);
+  --shadow-primary-lg: 0 8px 24px rgba(99, 102, 241, 0.35);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.4);
+
+  /* ============================================================
+   * Z-index 层级系统
+   * ============================================================ */
+  --z-base: 0;
+  --z-above: 1;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-fixed: 300;
+  --z-modal-backdrop: 400;
+  --z-modal: 500;
+  --z-popover: 600;
+  --z-tooltip: 700;
+  --z-notification: 800;
+  --z-toast: 900;
+  --z-max: 9999;
+
+  /* ============================================================
+   * 动画系统 - Animation & Transition
+   * ============================================================ */
+
+  /* === 缓动函数 === */
+  --easing-default: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-in: cubic-bezier(0.4, 0, 1, 1);
+  --easing-out: cubic-bezier(0, 0, 0.2, 1);
+  --easing-in-out: cubic-bezier(0.4, 0, 0.6, 1);
+  --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --easing-elastic: cubic-bezier(0.5, 1.5, 0.5, 1);
+
+  /* === 过渡时长 === */
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --duration-slower: 600ms;
+
+  /* === 组合过渡 === */
+  --transition: all var(--duration-normal) var(--easing-default);
+  --transition-fast: all var(--duration-fast) var(--easing-default);
+  --transition-slow: all var(--duration-slow) var(--easing-default);
+  --transition-colors: color var(--duration-normal) var(--easing-default),
+                      background-color var(--duration-normal) var(--easing-default),
+                      border-color var(--duration-normal) var(--easing-default);
+  --transition-transform: transform var(--duration-normal) var(--easing-default);
+  --transition-opacity: opacity var(--duration-normal) var(--easing-default);
+  --transition-shadow: box-shadow var(--duration-normal) var(--easing-default);
+
+  /* ============================================================
+   * 尺寸系统 - Sizing
+   * ============================================================ */
+
+  /* === 按钮尺寸 === */
+  --button-size-xs: 24px;
+  --button-size-sm: 32px;
+  --button-size-md: 40px;
+  --button-size-lg: 48px;
+  --button-size-xl: 56px;
+
+  /* === 输入框尺寸 === */
+  --input-height-sm: 32px;
+  --input-height-md: 40px;
+  --input-height-lg: 48px;
+  --input-min-height: 48px;
+
+  /* === 开关尺寸 === */
+  --switch-width: 40px;
+  --switch-height: 24px;
+  --switch-thumb-size: 20px;
+
+  /* === 选择器宽度 === */
+  --selector-width-xs: 80px;
+  --selector-width-sm: 120px;
+  --selector-width-md: 160px;
+  --selector-width-lg: 200px;
+  --selector-width-xl: 280px;
+
+  /* === 头像尺寸 === */
+  --avatar-size-xs: 24px;
+  --avatar-size-sm: 32px;
+  --avatar-size-md: 40px;
+  --avatar-size-lg: 48px;
+  --avatar-size-xl: 64px;
+  --avatar-size-2xl: 96px;
+
+  /* ============================================================
+   * 功能色 - Semantic Colors
+   * ============================================================ */
+
+  /* === 开关激活状态 === */
+  --switch-active-bg: rgba(139, 92, 246, 0.4);
+  --switch-active-border: rgba(139, 92, 246, 0.6);
+  --switch-active-text: #8b5cf6;
+
+  /* === 状态指示 === */
+  --status-online: var(--color-success-500);
+  --status-offline: var(--color-gray-400);
+  --status-busy: var(--color-error-500);
+  --status-away: var(--color-warning-500);
+
+  /* ============================================================
+   * 渐变系统 - Gradients
+   * ============================================================ */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-700) 100%);
+  --gradient-accent: linear-gradient(135deg, var(--color-accent-400) 0%, var(--color-accent-600) 100%);
+  --gradient-success: linear-gradient(135deg, var(--color-success-400) 0%, var(--color-success-600) 100%);
+  --gradient-warm: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  --gradient-cool: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+  --gradient-mesh: radial-gradient(at 40% 20%, var(--color-primary-500) 0px, transparent 50%),
+                  radial-gradient(at 80% 0%, var(--color-accent-400) 0px, transparent 50%),
+                  radial-gradient(at 0% 50%, var(--color-success-400) 0px, transparent 50%),
+                  radial-gradient(at 80% 50%, var(--color-warning-400) 0px, transparent 50%),
+                  radial-gradient(at 0% 100%, var(--color-error-400) 0px, transparent 50%),
+                  radial-gradient(at 80% 100%, var(--color-primary-400) 0px, transparent 50%);
+
+  /* ============================================================
+   * 断点系统 - Breakpoints (用于 CSS @media)
+   * ============================================================ */
+  --breakpoint-xs: 320px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+
+  /* ============================================================
+   * 容器宽度 - Container Widths
+   * ============================================================ */
+  --container-xs: 20rem;    /* 320px */
+  --container-sm: 24rem;    /* 384px */
+  --container-md: 28rem;    /* 448px */
+  --container-lg: 32rem;    /* 512px */
+  --container-xl: 36rem;    /* 576px */
+  --container-2xl: 42rem;   /* 672px */
+  --container-full: 100%;
+}
+
+/* ============================================================
+ * 深色模式令牌 - Dark Mode Tokens
+ * ============================================================ */
+.dark-theme {
+  /* === 语义化颜色映射 (深色模式) === */
+  --primary-color: var(--color-primary-400);
+  --primary-hover: var(--color-primary-300);
+  --primary-light: var(--color-primary-300);
+  --primary-gradient: linear-gradient(135deg, var(--color-primary-400) 0%, var(--color-primary-500) 100%);
+
+  --accent-color: var(--color-accent-300);
+  --accent-gradient: linear-gradient(135deg, var(--color-accent-300) 0%, var(--color-accent-500) 100%);
+
+  --success-color: var(--color-success-400);
+  --warning-color: var(--color-warning-400);
+  --error-color: var(--color-error-400);
+
+  --background-color: var(--color-gray-900);
+  --surface-color: var(--color-gray-800);
+  --card-background: var(--color-gray-800);
+  --card-header-background: var(--color-gray-800);
+
+  --text-primary: var(--color-gray-100);
+  --text-secondary: var(--color-gray-300);
+  --text-muted: var(--color-gray-500);
+
+  --border-color: var(--color-gray-700);
+  --border-hover: var(--color-gray-600);
+
+  --menu-background: var(--color-gray-900);
+  --menu-item-color: var(--color-gray-300);
+  --menu-item-hover: var(--color-gray-800);
+  --menu-item-active: var(--primary-gradient);
+
+  --input-background: var(--color-gray-800);
+  --input-border: var(--color-gray-700);
+  --input-placeholder: var(--color-gray-500);
+
+  /* === 深色模式阴影 === */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --shadow-2xl: 0 24px 64px rgba(0, 0, 0, 0.7);
+
+  /* === 深色模式开关 === */
+  --switch-active-bg: rgba(167, 139, 250, 0.45);
+  --switch-active-border: rgba(167, 139, 250, 0.65);
+  --switch-active-text: #a78bfa;
+}

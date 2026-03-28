@@ -270,6 +270,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* ========== 知识图谱布局容器 ========== */
 .kg-layout {
   display: flex;
   flex-direction: column;
@@ -277,7 +278,7 @@ onMounted(async () => {
   background: var(--background-color);
 }
 
-/* 顶部标题栏 */
+/* ========== 顶部标题栏 ========== */
 .kg-layout__header {
   display: flex;
   align-items: center;
@@ -299,6 +300,7 @@ onMounted(async () => {
   font-size: 20px;
   font-weight: 600;
   color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .kg-layout__header-right {
@@ -308,7 +310,7 @@ onMounted(async () => {
 }
 
 .kg-namespace-selector {
-  width: 280px;
+  width: var(--selector-width-lg);
 }
 
 .namespace-option {
@@ -333,32 +335,33 @@ onMounted(async () => {
 .kg-create-namespace-btn {
   width: 100%;
   color: var(--primary-color);
+  transition: var(--transition);
 }
 
 .kg-create-namespace-btn:hover {
   background: var(--surface-color);
 }
 
-/* 主体内容 */
+/* ========== 主体内容 ========== */
 .kg-layout__body {
   flex: 1;
   display: flex;
   overflow: hidden;
 }
 
-/* 侧边栏 */
+/* ========== 侧边栏 ========== */
 .kg-layout__sidebar {
   width: 200px;
   background: var(--card-background);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease;
+  transition: var(--transition);
   position: relative;
 }
 
 .kg-layout__sidebar--collapsed {
-  width: 60px;
+  width: 64px;
 }
 
 .kg-layout__sidebar--collapsed .kg-nav-text {
@@ -367,7 +370,7 @@ onMounted(async () => {
 
 .kg-nav {
   flex: 1;
-  padding: 16px 8px;
+  padding: 16px 12px;
   overflow-y: auto;
 }
 
@@ -377,20 +380,35 @@ onMounted(async () => {
   gap: 12px;
   padding: 12px 16px;
   margin-bottom: 4px;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
   text-decoration: none;
   transition: var(--transition);
+  position: relative;
 }
 
 .kg-nav-item:hover {
-  background: var(--surface-color);
+  background: var(--menu-item-hover);
   color: var(--text-primary);
 }
 
+/* 激活状态：左侧高亮条 + 渐变背景 */
 .kg-nav-item--active {
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.12) 0%, transparent 100%);
+  color: var(--primary-color);
+}
+
+.kg-nav-item--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
   background: var(--primary-color);
-  color: white;
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
 }
 
 .kg-nav-icon {
@@ -404,51 +422,72 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-/* 侧边栏折叠按钮 */
+/* ========== 侧边栏折叠按钮 ========== */
 .kg-sidebar-toggle {
   position: absolute;
   right: -12px;
   top: 50%;
   transform: translateY(-50%);
-  width: 24px;
+  width: 20px;
   height: 48px;
   background: var(--card-background);
   border: 1px solid var(--border-color);
-  border-radius: 0 12px 12px 0;
+  border-left: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: var(--text-muted);
   transition: var(--transition);
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--shadow-sm);
   z-index: 1;
+}
+
+.kg-sidebar-toggle::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 24px;
+  background: var(--primary-color);
+  border-radius: 0 2px 2px 0;
+  transition: var(--transition);
 }
 
 .kg-sidebar-toggle:hover {
   color: var(--primary-color);
   background: var(--surface-color);
+  width: 24px;
 }
 
-/* 内容区 */
+.kg-sidebar-toggle:hover::before {
+  height: 32px;
+  background: linear-gradient(180deg, var(--primary-color), var(--primary-light));
+}
+
+/* ========== 内容区 ========== */
 .kg-layout__content {
   flex: 1;
   overflow: hidden;
   position: relative;
 }
 
-/* 过渡动画 */
+/* ========== 过渡动画 ========== */
 .kg-fade-enter-active,
 .kg-fade-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
 }
 
 .kg-fade-enter-from,
 .kg-fade-leave-to {
   opacity: 0;
+  transform: translateY(8px);
 }
 
-/* 深色主题 */
+/* ========== 深色模式适配 ========== */
 .dark-theme .kg-layout__header,
 .dark-theme .kg-layout__sidebar {
   background: var(--card-background);

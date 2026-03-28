@@ -3,8 +3,8 @@
     <!-- 统计卡片行 -->
     <div class="kg-overview__cards">
       <div class="kg-stat-card">
-        <div class="kg-stat-card__icon" style="background: rgba(59, 130, 246, 0.1)">
-          <i class="el-icon-data-analysis" style="color: #3B82F6"></i>
+        <div class="kg-stat-card__icon kg-stat-card__icon--entity">
+          <span class="kg-stat-card__icon-emoji">🏗️</span>
         </div>
         <div class="kg-stat-card__content">
           <div class="kg-stat-card__label">实体总数</div>
@@ -16,8 +16,8 @@
       </div>
 
       <div class="kg-stat-card">
-        <div class="kg-stat-card__icon" style="background: rgba(16, 185, 129, 0.1)">
-          <i class="el-icon-connection" style="color: #10B981"></i>
+        <div class="kg-stat-card__icon kg-stat-card__icon--relation">
+          <span class="kg-stat-card__icon-emoji">🔗</span>
         </div>
         <div class="kg-stat-card__content">
           <div class="kg-stat-card__label">关系总数</div>
@@ -29,8 +29,8 @@
       </div>
 
       <div class="kg-stat-card">
-        <div class="kg-stat-card__icon" style="background: rgba(245, 158, 11, 0.1)">
-          <i class="el-icon-folder-opened" style="color: #F59E0B"></i>
+        <div class="kg-stat-card__icon kg-stat-card__icon--document">
+          <span class="kg-stat-card__icon-emoji">📚</span>
         </div>
         <div class="kg-stat-card__content">
           <div class="kg-stat-card__label">文档数量</div>
@@ -42,8 +42,8 @@
       </div>
 
       <div class="kg-stat-card">
-        <div class="kg-stat-card__icon" style="background: rgba(139, 92, 246, 0.1)">
-          <i class="el-icon-copy-document" style="color: #8B5CF6"></i>
+        <div class="kg-stat-card__icon kg-stat-card__icon--alias">
+          <span class="kg-stat-card__icon-emoji">🏷️</span>
         </div>
         <div class="kg-stat-card__content">
           <div class="kg-stat-card__label">别名数量</div>
@@ -134,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useNamespaceStore } from '../../stores/knowledgeGraph/namespaceStore.js'
 import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
@@ -157,6 +157,9 @@ const trendData = ref([])
 const entityTypeDistribution = ref([])
 const relationTypeDistribution = ref([])
 const activities = ref([])
+
+// 加载状态
+const isLoading = ref(false)
 
 // 实体类型颜色映射
 const entityTypeColors = {
@@ -383,19 +386,32 @@ function initRelationTypeChart() {
 // 加载数据
 async function loadData() {
   const namespaceId = namespaceStore.currentNamespaceId
-  if (!namespaceId) return
+  if (!namespaceId) {
+    console.log('OverviewPage: 没有选择命名空间，跳过加载')
+    return
+  }
+
+  // 防止重复请求
+  if (isLoading.value) {
+    console.log('OverviewPage: 正在加载中，跳过重复请求')
+    return
+  }
+
+  isLoading.value = true
+  console.log('OverviewPage: 开始加载数据，namespaceId =', namespaceId)
 
   try {
     // 加载统计数据
     const statsData = await namespaceStore.loadNamespaceStats(namespaceId)
     stats.value = statsData || {}
+    console.log('OverviewPage: 统计数据加载完成', stats.value)
 
     // 模拟趋势数据（实际应从API获取）
     trendData.value = generateMockTrendData()
 
-    // 模拟分布数据（实际应从API获取）
-    entityTypeDistribution.value = generateMockEntityTypeDistribution()
-    relationTypeDistribution.value = generateMockRelationTypeDistribution()
+    // 使用实际统计数据生成分布数据
+    entityTypeDistribution.value = generateEntityTypeDistributionFromStats()
+    relationTypeDistribution.value = generateRelationTypeDistributionFromStats()
 
     // 模拟活动数据
     activities.value = generateMockActivities()
@@ -404,7 +420,49 @@ async function loadData() {
     initCharts()
   } catch (error) {
     console.error('加载概览数据失败:', error)
+  } finally {
+    isLoading.value = false
   }
+}
+
+// 从统计数据生成实体类型分布
+function generateEntityTypeDistributionFromStats() {
+  const distribution = stats.value.entity_type_distribution || {}
+  const types = Object.keys(distribution)
+
+  if (types.length === 0) {
+    return generateMockEntityTypeDistribution()
+  }
+
+  const total = Object.values(distribution).reduce((sum, val) => sum + val, 0)
+  return types.map((type, index) => {
+    const color = Object.values(entityTypeColors)[index % Object.values(entityTypeColors).length]
+    return {
+      name: type,
+      value: distribution[type],
+      color: color,
+      percent: total > 0 ? Math.round((distribution[type] / total) * 100) : 0
+    }
+  })
+}
+
+// 从统计数据生成关系类型分布
+function generateRelationTypeDistributionFromStats() {
+  const distribution = stats.value.relation_type_distribution || {}
+  const types = Object.keys(distribution)
+
+  if (types.length === 0) {
+    return generateMockRelationTypeDistribution()
+  }
+
+  return types.map((type, index) => {
+    const color = Object.values(relationTypeColors)[index % Object.values(relationTypeColors).length]
+    return {
+      name: type,
+      value: distribution[type],
+      color: color
+    }
+  }).sort((a, b) => b.value - a.value)
 }
 
 // 生成模拟趋势数据
@@ -516,6 +574,17 @@ onUnmounted(() => {
   relationTypeChart?.dispose()
 })
 
+// 监听命名空间变化，自动重新加载数据
+watch(
+  () => namespaceStore.currentNamespaceId,
+  (newNamespaceId, oldNamespaceId) => {
+    console.log('OverviewPage: 命名空间变更', { old: oldNamespaceId, new: newNamespaceId })
+    if (newNamespaceId && newNamespaceId !== oldNamespaceId) {
+      loadData()
+    }
+  }
+)
+
 </script>
 
 <style scoped>
@@ -550,13 +619,37 @@ onUnmounted(() => {
 }
 
 .kg-stat-card__icon {
-  width: 56px;
-  height: 56px;
+  width: 64px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
-  font-size: 24px;
+  border-radius: var(--radius-lg);
+  font-size: 28px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kg-stat-card__icon--entity {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+}
+
+.kg-stat-card__icon--relation {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+
+.kg-stat-card__icon--document {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+}
+
+.kg-stat-card__icon--alias {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.05) 100%);
+}
+
+.kg-stat-card__icon-emoji {
+  font-size: 32px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
 }
 
 .kg-stat-card__content {

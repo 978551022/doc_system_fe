@@ -80,23 +80,23 @@
             <!-- 关系表达式 -->
             <div class="kg-relation-card__expression">
               <div class="kg-relation-node kg-relation-node--source">
-                <span class="kg-relation-node__icon">{{ getEntityTypeIcon(relation.source_entity_type) }}</span>
-                <span class="kg-relation-node__name">{{ relation.source_entity_name }}</span>
+                <span class="kg-relation-node__icon">{{ getEntityTypeIcon(getEntityType(relation.source_entity_id)) }}</span>
+                <span class="kg-relation-node__name">{{ getEntityName(relation.source_entity_id) }}</span>
               </div>
               <div class="kg-relation-edge">
                 <span class="kg-relation-edge__label" :style="{ color: getRelationTypeColor(relation.relation_type) }">
-                  {{ relation.relation_type }}
+                  {{ getRelationTypeName(relation.relation_type) }}
                 </span>
                 <span class="kg-relation-edge__arrow">→</span>
               </div>
               <div class="kg-relation-node kg-relation-node--target">
-                <span class="kg-relation-node__icon">{{ getEntityTypeIcon(relation.target_entity_type) }}</span>
-                <span class="kg-relation-node__name">{{ relation.target_entity_name }}</span>
+                <span class="kg-relation-node__icon">{{ getEntityTypeIcon(getEntityType(relation.target_entity_id)) }}</span>
+                <span class="kg-relation-node__name">{{ getEntityName(relation.target_entity_id) }}</span>
               </div>
             </div>
             <div class="kg-relation-card__type-label">
-              <el-tag size="small" :color="getRelationTypeColor(relation.relation_type)">
-                {{ relation.relation_type }}
+              <el-tag size="small" :style="{ backgroundColor: getRelationTypeColor(relation.relation_type) + '20', color: getRelationTypeColor(relation.relation_type), border: '1px solid ' + getRelationTypeColor(relation.relation_type) + '40' }">
+                {{ getRelationTypeName(relation.relation_type) }}
               </el-tag>
             </div>
             <div class="kg-relation-card__desc" v-if="relation.description">
@@ -325,7 +325,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
 import { useNamespaceStore } from '../../stores/knowledgeGraph/namespaceStore.js'
 import { useRelationStore } from '../../stores/knowledgeGraph/relationStore.js'
@@ -337,27 +337,28 @@ const entityStore = useEntityStore()
 
 // 关系类型配置
 const relationTypes = [
-  { value: '包含', label: '包含', icon: '📦' },
-  { value: '属于', label: '属于', icon: '🏷️' },
-  { value: '关联', label: '关联', icon: '🔗' },
-  { value: '位于', label: '位于', icon: '📍' },
-  { value: '创建', label: '创建', icon: '✨' },
-  { value: '拥有', label: '拥有', icon: '👤' },
-  { value: '依赖', label: '依赖', icon: '🔌' },
-  { value: '相似', label: '相似', icon: '🔄' },
-  { value: '对立', label: '对立', icon: '⚔️' },
-  { value: '因果', label: '因果', icon: '➡️' }
+  { value: 'CONTAINS', label: '包含', icon: '📦' },
+  { value: 'BELONGS_TO', label: '属于', icon: '🏷️' },
+  { value: 'RELATED_TO', label: '关联', icon: '🔗' },
+  { value: 'LOCATED_AT', label: '位于', icon: '📍' },
+  { value: 'CREATED', label: '创建', icon: '✨' },
+  { value: 'OWNS', label: '拥有', icon: '👤' },
+  { value: 'DEPENDS_ON', label: '依赖', icon: '🔌' },
+  { value: 'SIMILAR_TO', label: '相似', icon: '🔄' },
+  { value: 'OPPOSES', label: '对立', icon: '⚔️' },
+  { value: 'CAUSES', label: '因果', icon: '➡️' }
 ]
 
 // 实体类型配置（用于图标）
 const entityTypes = [
-  { value: '人物', label: '人物', icon: '👤' },
-  { value: '组织', label: '组织', icon: '🏢' },
-  { value: '地点', label: '地点', icon: '📍' },
-  { value: '概念', label: '概念', icon: '💡' },
-  { value: '事件', label: '事件', icon: '📅' },
-  { value: '文档', label: '文档', icon: '📄' },
-  { value: '技术', label: '技术', icon: '⚙️' }
+  { value: 'Person', label: '人物', icon: '👤' },
+  { value: 'Organization', label: '组织', icon: '🏢' },
+  { value: 'Location', label: '地点', icon: '📍' },
+  { value: 'Concept', label: '概念', icon: '💡' },
+  { value: 'Event', label: '事件', icon: '📅' },
+  { value: 'Document', label: '文档', icon: '📄' },
+  { value: 'Technology', label: '技术', icon: '⚙️' },
+  { value: 'Product', label: '产品', icon: '📦' }
 ]
 
 // UI状态
@@ -366,9 +367,12 @@ const detailDialogVisible = ref(false)
 const isEditMode = ref(false)
 const submitting = ref(false)
 const relationFormRef = ref(null)
+const isLoading = ref(false)
 
 // 可用实体列表（用于选择）
 const availableEntities = ref([])
+// 实体ID到名称的映射
+const entityMap = ref(new Map())
 
 // 筛选条件
 const filters = ref({
@@ -380,7 +384,7 @@ const filters = ref({
 // 关系表单
 const relationForm = ref({
   source_entity_id: '',
-  relation_type: '关联',
+  relation_type: 'RELATED_TO',
   target_entity_id: '',
   description: '',
   attributes: []
@@ -411,18 +415,24 @@ function getRelationTypeIcon(type) {
 // 获取关系类型颜色
 function getRelationTypeColor(type) {
   const colors = {
-    '包含': '#3B82F6',
-    '属于': '#10B981',
-    '关联': '#8B5CF6',
-    '位于': '#F59E0B',
-    '创建': '#EC4899',
-    '拥有': '#06B6D4',
-    '依赖': '#EF4444',
-    '相似': '#A855F7',
-    '对立': '#F97316',
-    '因果': '#14B8A6'
+    'CONTAINS': '#3B82F6',
+    'BELONGS_TO': '#10B981',
+    'RELATED_TO': '#8B5CF6',
+    'LOCATED_AT': '#F59E0B',
+    'CREATED': '#EC4899',
+    'OWNS': '#06B6D4',
+    'DEPENDS_ON': '#EF4444',
+    'SIMILAR_TO': '#A855F7',
+    'OPPOSES': '#F97316',
+    'CAUSES': '#14B8A6'
   }
   return colors[type] || '#94A3B8'
+}
+
+// 获取关系类型中文名
+function getRelationTypeName(type) {
+  const config = relationTypes.find(t => t.value === type)
+  return config?.label || type
 }
 
 // 获取实体类型图标
@@ -434,15 +444,46 @@ function getEntityTypeIcon(type) {
 // 获取实体类型颜色
 function getEntityTypeColor(type) {
   const colors = {
-    '人物': '#3B82F6',
-    '组织': '#10B981',
-    '地点': '#F59E0B',
-    '概念': '#8B5CF6',
-    '事件': '#EF4444',
-    '文档': '#6B7280',
-    '技术': '#06B6D4'
+    'Person': '#3B82F6',
+    'Organization': '#10B981',
+    'Location': '#F59E0B',
+    'Concept': '#8B5CF6',
+    'Event': '#EF4444',
+    'Document': '#6B7280',
+    'Technology': '#06B6D4',
+    'Product': '#EC4899'
   }
   return colors[type] || '#94A3B8'
+}
+
+// 获取实体类型中文名
+function getEntityTypeName(type) {
+  const config = entityTypes.find(t => t.value === type)
+  return config?.label || type
+}
+
+// 获取实体名称（支持ID和名称两种格式）
+function getEntityName(entity) {
+  if (!entity) return '未知'
+  if (typeof entity === 'string') {
+    // 如果是ID，从映射中查找
+    const mappedName = entityMap.value.get(entity)
+    if (mappedName) return mappedName
+    // 如果映射中没有，可能后端返回的就是名称，直接返回
+    return entity
+  }
+  return entity.name || entity.entity_id || '未知'
+}
+
+// 获取实体类型
+function getEntityType(entity) {
+  if (!entity) return 'Unknown'
+  if (typeof entity === 'string') {
+    // 如果是ID，从映射中查找
+    const entityData = entityMap.value.get(entity + '_type')
+    return entityData || 'Unknown'
+  }
+  return entity.entity_type || entity.type || 'Unknown'
 }
 
 // 格式化日期
@@ -452,23 +493,63 @@ function formatDate(dateStr) {
   return date.toLocaleDateString('zh-CN')
 }
 
-// 加载关系列表
-async function loadRelations() {
+// 加载实体映射（用于显示实体名称）
+async function loadEntityMap() {
   const namespaceId = namespaceStore.currentNamespaceId
   if (!namespaceId) return
 
   try {
-    await relationStore.getRelationList(namespaceId, {
-      page: relationStore.pagination.page,
-      size: relationStore.pagination.size
+    await entityStore.getEntityList(namespaceId, { page: 1, size: 1000 })
+    const newMap = new Map()
+    entityStore.entities.forEach(entity => {
+      newMap.set(entity.entity_id, entity.name)
+      newMap.set(entity.entity_id + '_type', entity.entity_type)
     })
+    entityMap.value = newMap
+    console.log('RelationsPage: 实体映射加载完成，共', newMap.size, '条记录')
   } catch (error) {
-    console.error('加载关系列表失败:', error)
-    ElMessage.error('加载关系列表失败')
+    console.error('加载实体映射失败:', error)
   }
 }
 
-// 加载可用实体列表
+// 加载关系列表
+async function loadRelations() {
+  const namespaceId = namespaceStore.currentNamespaceId
+  if (!namespaceId) {
+    console.log('RelationsPage: 没有选择命名空间')
+    return
+  }
+
+  // 防止重复请求
+  if (isLoading.value) {
+    console.log('RelationsPage: 正在加载中，跳过')
+    return
+  }
+
+  isLoading.value = true
+  console.log('RelationsPage: 加载关系列表', {
+    namespaceId,
+    page: relationStore.pagination.page,
+    size: relationStore.pagination.size,
+    relationType: filters.value.relationType
+  })
+
+  try {
+    await relationStore.getRelationList(namespaceId, {
+      page: relationStore.pagination.page,
+      size: relationStore.pagination.size,
+      relation_type: filters.value.relationType || undefined
+    })
+    console.log('RelationsPage: 加载完成，关系数量:', relationStore.relations.length)
+  } catch (error) {
+    console.error('加载关系列表失败:', error)
+    ElMessage.error('加载关系列表失败: ' + (error.message || '未知错误'))
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 加载可用实体列表（用于对话框选择）
 async function loadAvailableEntities() {
   const namespaceId = namespaceStore.currentNamespaceId
   if (!namespaceId) return
@@ -476,21 +557,25 @@ async function loadAvailableEntities() {
   try {
     await entityStore.getEntityList(namespaceId, { page: 1, size: 1000 })
     availableEntities.value = entityStore.entities || []
+    console.log('RelationsPage: 可用实体加载完成，共', availableEntities.value.length, '个')
   } catch (error) {
     console.error('加载实体列表失败:', error)
+    ElMessage.error('加载实体列表失败')
   }
 }
 
-// 筛选变化
-function handleFilterChange() {
+// 筛选变化 - 类型筛选
+async function handleFilterChange() {
+  console.log('RelationsPage: 类型筛选变更', filters.value.relationType)
   relationStore.setPage(1)
-  loadRelations()
+  await loadRelations()
 }
 
 // 搜索
-function handleSearch() {
+async function handleSearch() {
+  console.log('RelationsPage: 搜索关系', filters.value.searchQuery)
   relationStore.setPage(1)
-  loadRelations()
+  await loadRelations()
 }
 
 // 排序变化
@@ -515,7 +600,7 @@ async function showCreateDialog() {
   await loadAvailableEntities()
   relationForm.value = {
     source_entity_id: '',
-    relation_type: '关联',
+    relation_type: 'RELATED_TO',
     target_entity_id: '',
     description: '',
     attributes: []
@@ -525,12 +610,13 @@ async function showCreateDialog() {
 
 // 源实体变化时更新关系类型建议
 function handleSourceEntityChange(entityId) {
-  // 可以根据源实体类型建议合适的关系类型
   const entity = availableEntities.value.find(e => e.entity_id === entityId)
   if (entity) {
-    // 例如：如果是组织，默认关系类型改为"包含"
-    if (entity.entity_type === '组织') {
-      relationForm.value.relation_type = '包含'
+    // 根据实体类型建议合适的关系类型
+    if (entity.entity_type === 'Organization') {
+      relationForm.value.relation_type = 'CONTAINS'
+    } else if (entity.entity_type === 'Person') {
+      relationForm.value.relation_type = 'RELATED_TO'
     }
   }
 }
@@ -542,6 +628,13 @@ async function handleViewRelation(relation) {
 
   try {
     const detail = await relationStore.getRelationById(namespaceId, relation.relation_id)
+    // 补充实体名称信息
+    if (detail) {
+      detail.source_entity_name = entityMap.value.get(detail.source_entity_id) || detail.source_entity_id
+      detail.target_entity_name = entityMap.value.get(detail.target_entity_id) || detail.target_entity_id
+      detail.source_entity_type = entityMap.value.get(detail.source_entity_id + '_type') || 'Unknown'
+      detail.target_entity_type = entityMap.value.get(detail.target_entity_id + '_type') || 'Unknown'
+    }
     currentRelation.value = detail
     detailDialogVisible.value = true
   } catch (error) {
@@ -603,14 +696,15 @@ async function handleSaveRelation() {
     // 检查不能创建自环
     if (relationForm.value.source_entity_id === relationForm.value.target_entity_id) {
       ElMessage.warning('源实体和目标实体不能相同')
+      submitting.value = false
       return
     }
 
     // 准备数据
     const data = {
-      source_entity_id: relationForm.value.source_entity_id,
+      source_entity: relationForm.value.source_entity_id,
       relation_type: relationForm.value.relation_type,
-      target_entity_id: relationForm.value.target_entity_id,
+      target_entity: relationForm.value.target_entity_id,
       description: relationForm.value.description,
       attributes: {}
     }
@@ -635,7 +729,7 @@ async function handleSaveRelation() {
   } catch (error) {
     if (error !== false) {
       console.error('保存关系失败:', error)
-      ElMessage.error('保存失败')
+      ElMessage.error('保存失败: ' + (error.message || '未知错误'))
     }
   } finally {
     submitting.value = false
@@ -652,8 +746,17 @@ function removeAttr(index) {
   relationForm.value.attributes.splice(index, 1)
 }
 
+// 监听命名空间变化
+watch(() => namespaceStore.currentNamespaceId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    loadEntityMap()
+    loadRelations()
+  }
+})
+
 // 初始化
 onMounted(async () => {
+  await loadEntityMap()
   await loadRelations()
 })
 </script>

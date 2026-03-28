@@ -79,8 +79,8 @@
           <div class="kg-entity-card__body">
             <div class="kg-entity-card__name">{{ entity.name }}</div>
             <div class="kg-entity-card__type-label">
-              <el-tag size="small" :color="getEntityTypeColor(entity.entity_type)">
-                {{ entity.entity_type }}
+              <el-tag size="small" :style="{ backgroundColor: getEntityTypeColor(entity.entity_type) + '20', color: getEntityTypeColor(entity.entity_type), border: '1px solid ' + getEntityTypeColor(entity.entity_type) + '40' }">
+                {{ getEntityTypeName(entity.entity_type) }}
               </el-tag>
             </div>
             <div class="kg-entity-card__desc" v-if="entity.description">
@@ -268,7 +268,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus'
 import { useNamespaceStore } from '../../stores/knowledgeGraph/namespaceStore.js'
 import { useEntityStore } from '../../stores/knowledgeGraph/entityStore.js'
@@ -278,13 +278,14 @@ const entityStore = useEntityStore()
 
 // 实体类型配置
 const entityTypes = [
-  { value: '人物', label: '人物', icon: '👤' },
-  { value: '组织', label: '组织', icon: '🏢' },
-  { value: '地点', label: '地点', icon: '📍' },
-  { value: '概念', label: '概念', icon: '💡' },
-  { value: '事件', label: '事件', icon: '📅' },
-  { value: '文档', label: '文档', icon: '📄' },
-  { value: '技术', label: '技术', icon: '⚙️' }
+  { value: 'Person', label: '人物', icon: '👤' },
+  { value: 'Organization', label: '组织', icon: '🏢' },
+  { value: 'Location', label: '地点', icon: '📍' },
+  { value: 'Concept', label: '概念', icon: '💡' },
+  { value: 'Event', label: '事件', icon: '📅' },
+  { value: 'Document', label: '文档', icon: '📄' },
+  { value: 'Technology', label: '技术', icon: '⚙️' },
+  { value: 'Product', label: '产品', icon: '📦' }
 ]
 
 // UI状态
@@ -293,6 +294,7 @@ const detailDialogVisible = ref(false)
 const isEditMode = ref(false)
 const submitting = ref(false)
 const entityFormRef = ref(null)
+const isLoading = ref(false)
 
 // 筛选条件
 const filters = ref({
@@ -304,7 +306,7 @@ const filters = ref({
 // 实体表单
 const entityForm = ref({
   name: '',
-  entity_type: '人物',
+  entity_type: 'Person',
   aliases: '',
   description: '',
   attributes: []
@@ -332,21 +334,45 @@ function getEntityTypeIcon(type) {
 // 获取实体类型颜色
 function getEntityTypeColor(type) {
   const colors = {
-    '人物': '#3B82F6',
-    '组织': '#10B981',
-    '地点': '#F59E0B',
-    '概念': '#8B5CF6',
-    '事件': '#EF4444',
-    '文档': '#6B7280',
-    '技术': '#06B6D4'
+    'Person': '#3B82F6',
+    'Organization': '#10B981',
+    'Location': '#F59E0B',
+    'Concept': '#8B5CF6',
+    'Event': '#EF4444',
+    'Document': '#6B7280',
+    'Technology': '#06B6D4',
+    'Product': '#EC4899'
   }
   return colors[type] || '#94A3B8'
+}
+
+// 获取实体类型中文名
+function getEntityTypeName(type) {
+  const config = entityTypes.find(t => t.value === type)
+  return config?.label || type
 }
 
 // 加载实体列表
 async function loadEntities() {
   const namespaceId = namespaceStore.currentNamespaceId
-  if (!namespaceId) return
+  if (!namespaceId) {
+    console.log('EntitiesPage: 没有选择命名空间')
+    return
+  }
+
+  // 防止重复请求
+  if (isLoading.value) {
+    console.log('EntitiesPage: 正在加载中，跳过')
+    return
+  }
+
+  isLoading.value = true
+  console.log('EntitiesPage: 加载实体列表', {
+    namespaceId,
+    page: entityStore.pagination.page,
+    size: entityStore.pagination.size,
+    entityType: filters.value.entityType
+  })
 
   try {
     await entityStore.getEntityList(namespaceId, {
@@ -354,22 +380,51 @@ async function loadEntities() {
       size: entityStore.pagination.size,
       entity_type: filters.value.entityType || undefined
     })
+    console.log('EntitiesPage: 加载完成，实体数量:', entityStore.entities.length)
   } catch (error) {
     console.error('加载实体列表失败:', error)
-    ElMessage.error('加载实体列表失败')
+    ElMessage.error('加载实体列表失败: ' + (error.message || '未知错误'))
+  } finally {
+    isLoading.value = false
   }
 }
 
-// 筛选变化
-function handleFilterChange() {
+// 筛选变化 - 类型筛选
+async function handleFilterChange() {
+  console.log('EntitiesPage: 类型筛选变更', filters.value.entityType)
   entityStore.setPage(1)
-  loadEntities()
+  await loadEntities()
 }
 
 // 搜索
-function handleSearch() {
-  entityStore.setPage(1)
-  loadEntities()
+async function handleSearch() {
+  console.log('EntitiesPage: 搜索实体', filters.value.searchQuery)
+
+  const namespaceId = namespaceStore.currentNamespaceId
+  if (!namespaceId) return
+
+  // 如果有搜索关键词，使用搜索API
+  if (filters.value.searchQuery && filters.value.searchQuery.trim()) {
+    isLoading.value = true
+    try {
+      const results = await entityStore.searchEntities(
+        namespaceId,
+        filters.value.searchQuery.trim(),
+        { limit: 100 }
+      )
+      console.log('EntitiesPage: 搜索结果', results)
+      ElMessage.success(`找到 ${results.length} 个匹配实体`)
+    } catch (error) {
+      console.error('搜索实体失败:', error)
+      ElMessage.error('搜索失败')
+    } finally {
+      isLoading.value = false
+    }
+  } else {
+    // 没有关键词时重新加载列表
+    entityStore.setPage(1)
+    await loadEntities()
+  }
 }
 
 // 排序变化
@@ -393,7 +448,7 @@ function showCreateDialog() {
   isEditMode.value = false
   entityForm.value = {
     name: '',
-    entity_type: '人物',
+    entity_type: 'Person',
     aliases: '',
     description: '',
     attributes: []
@@ -510,6 +565,14 @@ function addAttr() {
 function removeAttr(index) {
   entityForm.value.attributes.splice(index, 1)
 }
+
+// 监听命名空间变化
+watch(() => namespaceStore.currentNamespaceId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    entityStore.clearSelection()
+    loadEntities()
+  }
+})
 
 // 初始化
 onMounted(async () => {

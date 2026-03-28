@@ -1,25 +1,23 @@
 <template>
-  <div class="kg-visualization">
+  <div class="kg-visualization" :class="{ 'kg-visualization--fullscreen': isFullscreen }">
     <!-- 工具栏 -->
-    <div class="kg-vis-toolbar">
+    <div class="kg-vis-toolbar" :class="{ 'kg-vis-toolbar--fullscreen': isFullscreen }">
       <div class="kg-vis-toolbar__left">
         <el-input
           v-model="searchQuery"
-          placeholder="搜索实体..."
+          placeholder="搜索实体名称..."
           prefix-icon="el-icon-search"
           clearable
           @keyup.enter="handleSearch"
+          @clear="handleClearSearch"
           class="kg-vis-search"
         />
-        <el-button @click="handleSearch" type="primary">搜索</el-button>
+        <el-button @click="handleSearch" type="primary" :loading="searching">搜索</el-button>
         <el-button @click="handleFocusSelected" :disabled="!hasSelected">
           <i class="el-icon-aim"></i> 聚焦
         </el-button>
         <el-button @click="handleRefresh">
           <i class="el-icon-refresh"></i> 刷新
-        </el-button>
-        <el-button @click="handleSaveLayout">
-          <i class="el-icon-document"></i> 保存布局
         </el-button>
       </div>
 
@@ -31,22 +29,31 @@
 
       <div class="kg-vis-toolbar__right">
         <el-select v-model="layoutType" @change="handleLayoutChange" class="kg-vis-layout-select">
-          <el-option label="力导向" value="force_directed" />
+          <el-option label="力导向" value="force" />
           <el-option label="环形" value="circular" />
-          <el-option label="层次" value="hierarchical" />
+          <el-option label="层次" value="dagre" />
         </el-select>
 
         <el-button @click="handleExportImage">
           <i class="el-icon-download"></i> 导出
         </el-button>
         <el-button @click="handleFullscreen">
-          <i class="el-icon-rank"></i> 全屏
+          <i :class="isFullscreen ? 'el-icon-close' : 'el-icon-rank'"></i>
+          {{ isFullscreen ? '退出' : '全屏' }}
         </el-button>
       </div>
     </div>
 
+    <!-- 全屏模式下的操作提示 -->
+    <div v-if="isFullscreen" class="kg-vis-fullscreen-hint">
+      <span>滚轮缩放 | 拖拽画布移动 | 单击节点查看详情 | 双击节点展开邻域</span>
+      <el-button size="small" text @click="handleFullscreen">
+        <i class="el-icon-close"></i>
+      </el-button>
+    </div>
+
     <!-- 图谱画布 -->
-    <div class="kg-vis-canvas-container">
+    <div class="kg-vis-canvas-container" :class="{ 'kg-vis-canvas-container--fullscreen': isFullscreen }">
       <div ref="canvasContainer" class="kg-vis-canvas">
         <!-- G6 画布 -->
         <div ref="graphRef" class="kg-vis-graph"></div>
@@ -68,88 +75,110 @@
           <i class="el-icon-loading is-loading" style="font-size: 32px"></i>
           <p>加载中...</p>
         </div>
-      </div>
 
-      <!-- 图例 -->
-      <div class="kg-vis-legend" v-if="!isEmpty">
-        <div class="kg-vis-legend__title">图例</div>
-        <div class="kg-vis-legend__items">
-          <div
-            v-for="(config, type) in entityTypeConfig"
-            :key="type"
-            class="kg-vis-legend-item"
-          >
-            <span
-              class="kg-vis-legend-color"
-              :style="{ background: config.color }"
-            ></span>
-            <span class="kg-vis-legend-text">{{ type }}</span>
+        <!-- 图例 -->
+        <div class="kg-vis-legend" v-if="!isEmpty && !isFullscreen">
+          <div class="kg-vis-legend__title">图例</div>
+          <div class="kg-vis-legend__items">
+            <div
+              v-for="(config, type) in entityTypeLegend"
+              :key="type"
+              class="kg-vis-legend-item"
+            >
+              <span
+                class="kg-vis-legend-color"
+                :style="{ background: config.color }"
+              ></span>
+              <span class="kg-vis-legend-text">{{ type }}</span>
+              <span class="kg-vis-legend-count">({{ config.count }})</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- 缩放控制 -->
-      <div class="kg-vis-zoom">
-        <el-button-group>
-          <el-button size="small" @click="handleZoomIn">
-            <i class="el-icon-zoom-in"></i>
-          </el-button>
-          <el-button size="small" @click="handleZoomReset">
-            <i class="el-icon-full-screen"></i>
-          </el-button>
-          <el-button size="small" @click="handleZoomOut">
-            <i class="el-icon-zoom-out"></i>
-          </el-button>
-        </el-button-group>
+        <!-- 缩放控制 -->
+        <div class="kg-vis-zoom" v-if="!isFullscreen">
+          <el-button-group>
+            <el-button size="small" @click="handleZoomIn" title="放大">
+              <i class="el-icon-zoom-in"></i>
+            </el-button>
+            <el-button size="small" @click="handleZoomReset" title="重置">
+              <i class="el-icon-full-screen"></i>
+            </el-button>
+            <el-button size="small" @click="handleZoomOut" title="缩小">
+              <i class="el-icon-zoom-out"></i>
+            </el-button>
+          </el-button-group>
+        </div>
+
+        <!-- 全屏模式下的控制面板 -->
+        <div v-if="isFullscreen" class="kg-vis-fullscreen-controls">
+          <el-button-group>
+            <el-button size="small" @click="handleZoomIn" circle>
+              <i class="el-icon-plus"></i>
+            </el-button>
+            <el-button size="small" @click="handleZoomReset" circle>
+              <i class="el-icon-refresh-right"></i>
+            </el-button>
+            <el-button size="small" @click="handleZoomOut" circle>
+              <i class="el-icon-minus"></i>
+            </el-button>
+          </el-button-group>
+        </div>
       </div>
     </div>
 
-    <!-- 选中节点详情 -->
-    <transition name="slide-right">
-      <div v-if="selectedNode" class="kg-vis-detail-panel">
-        <div class="kg-vis-detail-header">
-          <h3>节点详情</h3>
-          <el-button size="small" text @click="closeDetail">
-            <i class="el-icon-close"></i>
-          </el-button>
+    <!-- 选中节点详情弹窗 -->
+    <el-dialog
+      v-model="detailVisible"
+      title="节点详情"
+      width="400px"
+      :close-on-click-modal="true"
+      class="kg-vis-detail-dialog"
+    >
+      <div v-if="selectedNode" class="kg-vis-detail-content">
+        <div class="kg-vis-detail-header-inline">
+          <div class="kg-vis-detail-icon" :style="{ background: getEntityTypeColor(selectedNode.type) }">
+            {{ getEntityTypeIcon(selectedNode.type) }}
+          </div>
+          <div class="kg-vis-detail-title">
+            <h3>{{ selectedNode.label || selectedNode.id }}</h3>
+            <el-tag size="small" :color="getEntityTypeColor(selectedNode.type)">
+              {{ selectedNode.type }}
+            </el-tag>
+          </div>
         </div>
-        <div class="kg-vis-detail-body">
-          <div class="kg-vis-detail-row">
-            <span class="kg-vis-detail-label">名称:</span>
-            <span class="kg-vis-detail-value">{{ selectedNode.label }}</span>
-          </div>
-          <div class="kg-vis-detail-row">
-            <span class="kg-vis-detail-label">类型:</span>
-            <span class="kg-vis-detail-value">
-              <el-tag :color="getEntityTypeColor(selectedNode.type)" size="small">
-                {{ selectedNode.type }}
-              </el-tag>
-            </span>
-          </div>
-          <div class="kg-vis-detail-row" v-if="selectedNode.attributes">
-            <span class="kg-vis-detail-label">属性:</span>
-            <div class="kg-vis-detail-attrs">
-              <div
-                v-for="(value, key) in selectedNode.attributes"
-                :key="key"
-                class="kg-vis-detail-attr"
-              >
-                <span class="kg-vis-detail-attr-key">{{ key }}:</span>
-                <span class="kg-vis-detail-attr-value">{{ value }}</span>
-              </div>
+
+        <el-divider />
+
+        <div class="kg-vis-detail-section" v-if="selectedNode.attributes && Object.keys(selectedNode.attributes).length > 0">
+          <h4>属性</h4>
+          <div class="kg-vis-detail-attrs">
+            <div
+              v-for="(value, key) in selectedNode.attributes"
+              :key="key"
+              class="kg-vis-detail-attr-item"
+            >
+              <span class="kg-vis-detail-attr-key">{{ key }}:</span>
+              <span class="kg-vis-detail-attr-value">{{ value }}</span>
             </div>
           </div>
-          <div class="kg-vis-detail-actions">
-            <el-button size="small" @click="handleExpandNode">
-              <i class="el-icon-plus"></i> 展开邻域
-            </el-button>
-            <el-button size="small" @click="handleEditNode">
-              <i class="el-icon-edit"></i> 编辑
-            </el-button>
+        </div>
+
+        <div class="kg-vis-detail-section">
+          <h4>连接统计</h4>
+          <div class="kg-vis-detail-stats">
+            <span>关联关系: {{ getNodeRelationCount(selectedNode.id) }}</span>
           </div>
         </div>
       </div>
-    </transition>
+
+      <template #footer>
+        <el-button @click="closeDetail">关闭</el-button>
+        <el-button type="primary" @click="handleExpandNode">
+          <i class="el-icon-plus"></i> 展开邻域
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -171,25 +200,56 @@ const graphRef = ref(null)
 const canvasContainer = ref(null)
 
 // 状态
-let graphInstance = null  // 使用普通变量而不是ref
+let graphInstance = null
 const searchQuery = ref('')
-const layoutType = ref('force_directed')
+const layoutType = ref('force')
 const loading = ref(false)
+const searching = ref(false)
+const isFullscreen = ref(false)
+const detailVisible = ref(false)
 
 // 实体类型配置
 const entityTypeConfig = {
-  '人物': { color: '#3B82F6' },
-  '组织': { color: '#10B981' },
-  '地点': { color: '#F59E0B' },
-  '概念': { color: '#8B5CF6' },
-  '事件': { color: '#EF4444' },
-  '文档': { color: '#6B7280' }
+  'Person': { color: '#3B82F6', icon: '👤' },
+  'Organization': { color: '#10B981', icon: '🏢' },
+  'Location': { color: '#F59E0B', icon: '📍' },
+  'Concept': { color: '#8B5CF6', icon: '💡' },
+  'Event': { color: '#EF4444', icon: '📅' },
+  'Document': { color: '#6B7280', icon: '📄' },
+  'Technology': { color: '#06B6D4', icon: '⚙️' },
+  'Product': { color: '#EC4899', icon: '📦' }
+}
+
+// 中文类型映射
+const chineseTypeMap = {
+  'Person': '人物',
+  'Organization': '组织',
+  'Location': '地点',
+  'Concept': '概念',
+  'Event': '事件',
+  'Document': '文档',
+  'Technology': '技术',
+  'Product': '产品'
 }
 
 // 计算属性
 const selectedNode = computed(() => visualizationStore.selectedNode)
 const hasSelected = computed(() => !!selectedNode.value)
 const isEmpty = computed(() => visualizationStore.isGraphEmpty)
+
+// 实体类型图例（动态生成）
+const entityTypeLegend = computed(() => {
+  const distribution = visualizationStore.entityTypeDistribution
+  const legend = {}
+  Object.entries(distribution).forEach(([type, count]) => {
+    const config = entityTypeConfig[type] || { color: '#94A3B8', icon: '📦' }
+    legend[chineseTypeMap[type] || type] = {
+      color: config.color,
+      count: count
+    }
+  })
+  return legend
+})
 
 // 初始化图谱
 function initGraph() {
@@ -199,37 +259,41 @@ function initGraph() {
   const width = canvasContainer.value?.clientWidth || 800
   const height = canvasContainer.value?.clientHeight || 600
 
-  // G6 v5 使用新的API
   graphInstance = new Graph({
     container: graphRef.value,
     width,
     height,
     autoFit: 'view',
-    padding: 20,
-    // v5 使用 node 和 edge 配置
+    padding: 40,
     node: {
       style: {
         fill: isDark ? '#1e293b' : '#ffffff',
         stroke: isDark ? '#475569' : '#e2e8f0',
-        lineWidth: 2
+        lineWidth: 2,
+        size: 30
+      },
+      // 配置标签显示
+      label: {
+        style: {
+          fill: isDark ? '#e2e8f0' : '#1e293b',
+          fontSize: 12
+        }
       }
     },
     edge: {
-      type: 'cubic-horizontal', // v5 支持的边类型
+      type: 'cubic-horizontal',
       style: {
         stroke: isDark ? '#475569' : '#cbd5e1',
         lineWidth: 2,
         endArrow: true
       }
     },
-    // 布局配置
     layout: {
-      type: 'force',  // 力导向布局
+      type: 'force',
       preventOverlap: true,
-      nodeSpacing: 50,
+      nodeSpacing: 60,
       linkDistance: 150
     },
-    // 交互行为
     behaviors: [
       'drag-canvas',
       'zoom-canvas',
@@ -238,10 +302,7 @@ function initGraph() {
     ]
   })
 
-  // 绑定事件
   bindGraphEvents()
-
-  // 加载数据
   loadGraphData()
 }
 
@@ -249,22 +310,35 @@ function initGraph() {
 function bindGraphEvents() {
   if (!graphInstance) return
 
-  // 节点点击 - G6 v5 使用不同的事件名
+  // 节点点击 - 单击即可展示详情
   graphInstance.on('node:click', (evt) => {
     const { itemId } = evt
     const nodeData = graphInstance.getNodeData(itemId)
     visualizationStore.selectNode(nodeData)
+    detailVisible.value = true
   })
 
-  // 画布点击
+  // 画布点击 - 清除选择
   graphInstance.on('canvas:click', () => {
     visualizationStore.clearSelection()
+    detailVisible.value = false
   })
 
   // 节点双击 - 展开邻域
   graphInstance.on('node:dblclick', async (evt) => {
     const { itemId } = evt
     await expandNeighborhood(itemId)
+  })
+
+  // 监听节点悬停
+  graphInstance.on('node:mouseenter', (evt) => {
+    const { itemId } = evt
+    graphInstance.setItemState(itemId, 'hover', true)
+  })
+
+  graphInstance.on('node:mouseleave', (evt) => {
+    const { itemId } = evt
+    graphInstance.setItemState(itemId, 'hover', false)
   })
 }
 
@@ -275,47 +349,65 @@ async function loadGraphData() {
 
   loading.value = true
   try {
-    const response = await getGraphData(namespaceId, { limit: 100 })
+    const response = await getGraphData(namespaceId, { limit: 200 })
     if (response.code === 200) {
       const { nodes = [], edges = [] } = response.data
 
-      // G6 v5 使用 setData 方法
-      graphInstance.setData({
-        nodes: nodes.map(node => ({
+      if (nodes.length === 0) {
+        visualizationStore.clearGraphData()
+        return
+      }
+
+      // 转换节点数据，确保标签显示
+      const g6Nodes = nodes.map(node => {
+        const type = node.type || 'Unknown'
+        const config = entityTypeConfig[type] || { color: '#3B82F6' }
+        return {
           id: node.id,
           data: {
-            label: node.label,
-            type: node.type,
-            attributes: node.attributes || {}
+            label: node.label || node.id,
+            type: type,
+            attributes: node.attributes || {},
+            // 添加label属性用于显示
+            name: node.label || node.id
           },
           style: {
-            fill: node.properties?.color || entityTypeConfig[node.type]?.color || '#3B82F6',
-            stroke: node.properties?.color || entityTypeConfig[node.type]?.color || '#3B82F6'
+            fill: config.color,
+            stroke: config.color,
+            size: node.properties?.size || 35,
+            // 配置 halo 效果
+            halo: false
           }
-        })),
-        edges: edges.map(edge => ({
-          id: edge.id,
-          source: edge.source,
-          target: edge.target,
-          data: {
-            label: edge.label
-          },
-          style: {
-            stroke: edge.properties?.color || '#94A3B8',
-            lineWidth: edge.properties?.width || 2
-          }
-        }))
+        }
       })
 
-      // G6 v5 使用不同的渲染方法
-      await graphInstance.render()
-      graphInstance.fitView()
+      const g6Edges = edges.map(edge => ({
+        id: edge.id,
+        source: edge.source,
+        target: edge.target,
+        data: {
+          label: edge.label || ''
+        },
+        style: {
+          stroke: edge.properties?.color || '#94A3B8',
+          lineWidth: edge.properties?.width || 2
+        }
+      }))
 
-      visualizationStore.loadGraphData(namespaceId)
+      graphInstance.setData({
+        nodes: g6Nodes,
+        edges: g6Edges
+      })
+
+      await graphInstance.render()
+      graphInstance.fitView(20)
+
+      // 更新 store 中的数据
+      visualizationStore.loadGraphData(namespaceId, 200)
     }
   } catch (error) {
     console.error('加载图谱数据失败:', error)
-    ElMessage.error('加载图谱数据失败')
+    ElMessage.error('加载图谱数据失败: ' + (error.message || '未知错误'))
   } finally {
     loading.value = false
   }
@@ -327,35 +419,39 @@ async function expandNeighborhood(nodeId) {
   if (!namespaceId || !graphInstance) return
 
   try {
-    const response = await getSubGraph(namespaceId, nodeId, { depth: 1, maxNodes: 20 })
+    const response = await getSubGraph(namespaceId, nodeId, { depth: 1, max_nodes: 50 })
     if (response.code === 200) {
       const { nodes = [], edges = [] } = response.data
 
-      // 获取现有节点ID - G6 v5 API
-      const existingNodeIds = new Set(graphInstance.getNodeData().map(n => n.id))
-      const existingEdgeIds = new Set(graphInstance.getEdgeData().map(e => e.id))
+      const allNodeData = graphInstance.getNodeData()
+      const allEdgeData = graphInstance.getEdgeData()
+      const existingNodeIds = new Set(allNodeData.map(n => n.id))
+      const existingEdgeIds = new Set(allEdgeData.map(e => e.id))
 
-      // 添加新节点
-      const newNodes = nodes.filter(n => !existingNodeIds.has(n.id)).map(node => ({
-        id: node.id,
-        data: {
-          label: node.label,
-          type: node.type,
-          attributes: node.attributes || {}
-        },
-        style: {
-          fill: node.properties?.color || entityTypeConfig[node.type]?.color || '#3B82F6',
-          stroke: node.properties?.color || entityTypeConfig[node.type]?.color || '#3B82F6'
+      const newNodes = nodes.filter(n => !existingNodeIds.has(n.id)).map(node => {
+        const type = node.type || 'Unknown'
+        const config = entityTypeConfig[type] || { color: '#3B82F6' }
+        return {
+          id: node.id,
+          data: {
+            label: node.label || node.id,
+            type: type,
+            attributes: node.attributes || {},
+            name: node.label || node.id
+          },
+          style: {
+            fill: config.color,
+            stroke: config.color
+          }
         }
-      }))
+      })
 
-      // 添加新边
       const newEdges = edges.filter(e => !existingEdgeIds.has(e.id)).map(edge => ({
         id: edge.id,
         source: edge.source,
         target: edge.target,
         data: {
-          label: edge.label
+          label: edge.label || ''
         },
         style: {
           stroke: edge.properties?.color || '#94A3B8',
@@ -363,11 +459,14 @@ async function expandNeighborhood(nodeId) {
         }
       }))
 
-      // G6 v5 使用 addData 方法
-      graphInstance.addData('node', newNodes)
-      graphInstance.addData('edge', newEdges)
+      if (newNodes.length > 0) {
+        graphInstance.addData('node', newNodes)
+      }
+      if (newEdges.length > 0) {
+        graphInstance.addData('edge', newEdges)
+      }
 
-      ElMessage.success(`已展开 ${nodes.length} 个节点`)
+      ElMessage.success(`已展开 ${newNodes.length} 个新节点`)
     }
   } catch (error) {
     console.error('展开邻域失败:', error)
@@ -375,20 +474,96 @@ async function expandNeighborhood(nodeId) {
   }
 }
 
-// 搜索
-function handleSearch() {
-  if (!searchQuery.value.trim()) {
+// 搜索实体
+async function handleSearch() {
+  const query = searchQuery.value.trim()
+  if (!query) {
     ElMessage.warning('请输入搜索关键词')
     return
   }
-  ElMessage.info('搜索功能开发中...')
+
+  if (!graphInstance) return
+
+  searching.value = true
+  try {
+    const allNodes = graphInstance.getNodeData()
+    const matchedNodes = allNodes.filter(node => {
+      const label = node.data?.label || node.data?.name || node.id || ''
+      return label.toLowerCase().includes(query.toLowerCase())
+    })
+
+    if (matchedNodes.length === 0) {
+      ElMessage.warning('未找到匹配的实体')
+      return
+    }
+
+    // 高亮匹配的节点
+    graphInstance.setItemState(allNodes.map(n => n.id), 'inactive', true)
+
+    matchedNodes.forEach(node => {
+      graphInstance.setItemState(node.id, 'inactive', false)
+      graphInstance.setItemState(node.id, 'highlight', true)
+    })
+
+    // 高亮相关边
+    const allEdges = graphInstance.getEdgeData()
+    const matchedNodeIds = new Set(matchedNodes.map(n => n.id))
+    const relatedEdges = allEdges.filter(edge =>
+      matchedNodeIds.has(edge.source) || matchedNodeIds.has(edge.target)
+    )
+
+    allEdges.forEach(edge => {
+      const isRelated = matchedNodeIds.has(edge.source) || matchedNodeIds.has(edge.target)
+      graphInstance.setItemState(edge.id, 'inactive', !isRelated)
+    })
+
+    // 聚焦到第一个匹配节点
+    if (matchedNodes.length > 0) {
+      graphInstance.focusItem(matchedNodes[0].id)
+    }
+
+    ElMessage.success(`找到 ${matchedNodes.length} 个匹配实体`)
+
+    // 3秒后恢复高亮状态
+    setTimeout(() => {
+      allNodes.forEach(node => {
+        graphInstance.setItemState(node.id, 'inactive', false)
+        graphInstance.setItemState(node.id, 'highlight', false)
+      })
+      allEdges.forEach(edge => {
+        graphInstance.setItemState(edge.id, 'inactive', false)
+      })
+    }, 3000)
+  } catch (error) {
+    console.error('搜索失败:', error)
+    ElMessage.error('搜索失败')
+  } finally {
+    searching.value = false
+  }
+}
+
+// 清除搜索
+function handleClearSearch() {
+  if (!graphInstance) return
+
+  const allNodes = graphInstance.getNodeData()
+  const allEdges = graphInstance.getEdgeData()
+
+  allNodes.forEach(node => {
+    graphInstance.setItemState(node.id, 'inactive', false)
+    graphInstance.setItemState(node.id, 'highlight', false)
+  })
+
+  allEdges.forEach(edge => {
+    graphInstance.setItemState(edge.id, 'inactive', false)
+  })
 }
 
 // 聚焦选中
 function handleFocusSelected() {
   if (selectedNode.value && graphInstance) {
-    // G6 v5 使用 focusItem API
     graphInstance.focusItem(selectedNode.value.id)
+    detailVisible.value = true
   }
 }
 
@@ -398,41 +573,45 @@ async function handleRefresh() {
   ElMessage.success('已刷新')
 }
 
-// 保存布局
-function handleSaveLayout() {
-  ElMessage.success('布局已保存')
-}
-
-// 布局切换
-function handleLayoutChange() {
+// 布局切换 - G6 v5 使用 layout() 方法而不是 updateLayout()
+async function handleLayoutChange() {
   if (!graphInstance) return
 
   const layoutConfigs = {
-    force_directed: {
+    force: {
       type: 'force',
       linkDistance: 150,
-      preventOverlap: true
+      preventOverlap: true,
+      nodeSpacing: 60
     },
     circular: {
       type: 'circular',
-      radius: 200
+      radius: 200,
+      preventOverlap: true
     },
-    hierarchical: {
+    dagre: {
       type: 'dagre',
-      rankdir: 'TB'
+      rankdir: 'TB',
+      nodesep: 50,
+      ranksep: 100
     }
   }
 
-  // G6 v5 使用 updateLayout 方法
-  graphInstance.updateLayout(layoutConfigs[layoutType.value])
-  visualizationStore.setLayout(layoutType.value)
+  try {
+    // G6 v5 使用 layout() 方法
+    await graphInstance.layout(layoutConfigs[layoutType.value])
+    visualizationStore.setLayout(layoutType.value)
+    ElMessage.success(`已切换到${layoutType.value === 'force' ? '力导向' : layoutType.value === 'circular' ? '环形' : '层次'}布局`)
+  } catch (error) {
+    console.error('布局切换失败:', error)
+    ElMessage.error('布局切换失败')
+  }
 }
 
 // 导出图片
 function handleExportImage() {
   if (graphInstance) {
     try {
-      // G6 v5 使用 toDataURL 方法
       const dataURL = graphInstance.toDataURL('image/png')
       const link = document.createElement('a')
       link.download = `knowledge-graph-${Date.now()}.png`
@@ -447,11 +626,25 @@ function handleExportImage() {
 
 // 全屏
 function handleFullscreen() {
-  if (!document.fullscreenElement) {
-    canvasContainer.value?.requestFullscreen()
+  isFullscreen.value = !isFullscreen.value
+  if (isFullscreen.value) {
+    if (canvasContainer.value) {
+      canvasContainer.value.requestFullscreen().catch(err => {
+        console.log('全屏失败，使用容器全屏模式:', err)
+      })
+    }
   } else {
-    document.exitFullscreen()
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    }
   }
+
+  // 延迟调整画布大小
+  nextTick(() => {
+    setTimeout(() => {
+      handleResize()
+    }, 100)
+  })
 }
 
 // 缩放
@@ -471,12 +664,13 @@ function handleZoomOut() {
 
 function handleZoomReset() {
   if (graphInstance) {
-    graphInstance.fitView()
+    graphInstance.fitView(20)
   }
 }
 
 // 关闭详情
 function closeDetail() {
+  detailVisible.value = false
   visualizationStore.clearSelection()
 }
 
@@ -484,32 +678,63 @@ function closeDetail() {
 async function handleExpandNode() {
   if (selectedNode.value) {
     await expandNeighborhood(selectedNode.value.id)
+    closeDetail()
   }
-}
-
-// 编辑节点
-function handleEditNode() {
-  ElMessage.info('编辑功能开发中...')
 }
 
 // 获取实体类型颜色
 function getEntityTypeColor(type) {
-  return entityTypeConfig[type]?.color || ''
+  const config = entityTypeConfig[type] || { color: '#94A3B8' }
+  return config.color
 }
 
-// 窗口大小变化
+// 获取实体类型图标
+function getEntityTypeIcon(type) {
+  const config = entityTypeConfig[type] || { icon: '📦' }
+  return config.icon
+}
+
+// 获取节点关系数量
+function getNodeRelationCount(nodeId) {
+  if (!graphInstance) return 0
+  const edges = graphInstance.getEdgeData()
+  return edges.filter(e => e.source === nodeId || e.target === nodeId).length
+}
+
+// 窗口大小变化 - 确保全屏时canvas充满整个屏幕
 function handleResize() {
   if (graphInstance && canvasContainer.value) {
-    const width = canvasContainer.value.clientWidth
-    const height = canvasContainer.value.clientHeight
+    // 全屏模式下使用 window 尺寸，否则使用容器尺寸
+    const width = isFullscreen.value ? window.innerWidth : canvasContainer.value.clientWidth
+    const height = isFullscreen.value ? window.innerHeight : canvasContainer.value.clientHeight
     graphInstance.changeSize(width, height)
+    // 重新渲染以确保正确显示
+    setTimeout(() => {
+      graphInstance.fitView(20)
+    }, 50)
   }
 }
 
 // 监听命名空间变化
-watch(() => namespaceStore.currentNamespaceId, () => {
-  if (graphInstance) {
+watch(() => namespaceStore.currentNamespaceId, (newId, oldId) => {
+  if (newId && newId !== oldId && graphInstance) {
+    visualizationStore.clearSelection()
+    detailVisible.value = false
     loadGraphData()
+  }
+})
+
+// 监听全屏变化
+watch(isFullscreen, () => {
+  nextTick(() => {
+    handleResize()
+  })
+})
+
+// 监听详情弹窗关闭
+watch(detailVisible, (val) => {
+  if (!val) {
+    visualizationStore.clearSelection()
   }
 })
 
@@ -518,10 +743,16 @@ onMounted(async () => {
   await nextTick()
   initGraph()
   window.addEventListener('resize', handleResize)
+
+  // 监听全屏变化事件
+  document.addEventListener('fullscreenchange', () => {
+    isFullscreen.value = !!document.fullscreenElement
+  })
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  document.removeEventListener('fullscreenchange', () => {})
   graphInstance?.destroy()
   graphInstance = null
 })
@@ -533,6 +764,17 @@ onUnmounted(() => {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  position: relative;
+}
+
+.kg-visualization--fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9999;
+  background: var(--background-color);
 }
 
 /* 工具栏 */
@@ -545,6 +787,21 @@ onUnmounted(() => {
   border-bottom: 1px solid var(--border-color);
   gap: 16px;
   flex-shrink: 0;
+  z-index: 100;
+}
+
+.kg-vis-toolbar--fullscreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+}
+
+.dark-theme .kg-vis-toolbar--fullscreen {
+  background: rgba(15, 23, 42, 0.95);
 }
 
 .kg-vis-toolbar__left,
@@ -566,11 +823,29 @@ onUnmounted(() => {
 }
 
 .kg-vis-search {
-  width: 200px;
+  width: 220px;
 }
 
 .kg-vis-layout-select {
   width: 100px;
+}
+
+/* 全屏提示 */
+.kg-vis-fullscreen-hint {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 999;
+  pointer-events: auto;
 }
 
 /* 画布 */
@@ -578,6 +853,17 @@ onUnmounted(() => {
   flex: 1;
   position: relative;
   overflow: hidden;
+}
+
+.kg-vis-canvas-container--fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9998;
 }
 
 .kg-vis-canvas {
@@ -592,6 +878,23 @@ onUnmounted(() => {
   background: var(--background-color);
   position: relative;
   z-index: 1;
+}
+
+/* 确保全屏时canvas容器下的图表元素充满整个屏幕 */
+.kg-visualization--fullscreen .kg-vis-canvas {
+  width: 100vw;
+  height: 100vh;
+}
+
+.kg-visualization--fullscreen .kg-vis-graph {
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+/* 覆盖G6生成的canvas样式 */
+.kg-visualization--fullscreen :deep(canvas) {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* 空状态 */
@@ -632,6 +935,7 @@ onUnmounted(() => {
   text-align: center;
   color: var(--text-muted);
   pointer-events: none;
+  z-index: 10;
 }
 
 .kg-vis-loading p {
@@ -649,6 +953,9 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   padding: 12px 16px;
   box-shadow: var(--shadow-md);
+  z-index: 50;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .kg-vis-legend__title {
@@ -676,6 +983,12 @@ onUnmounted(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.kg-vis-legend-count {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 /* 缩放控制 */
@@ -688,99 +1001,132 @@ onUnmounted(() => {
   border-radius: var(--radius-sm);
   padding: 4px;
   box-shadow: var(--shadow-md);
+  z-index: 50;
 }
 
-/* 详情面板 */
-.kg-vis-detail-panel {
+/* 全屏控制面板 */
+.kg-vis-fullscreen-controls {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  width: 280px;
-  background: var(--card-background);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
+  bottom: 24px;
+  right: 24px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px;
+  border-radius: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
-.kg-vis-detail-header {
+.dark-theme .kg-vis-fullscreen-controls {
+  background: rgba(30, 41, 59, 0.9);
+}
+
+/* 详情弹窗样式 */
+.kg-vis-detail-dialog :deep(.el-dialog__body) {
+  padding: 16px 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.kg-vis-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.kg-vis-detail-header-inline {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-color);
+  gap: 16px;
 }
 
-.kg-vis-detail-header h3 {
+.kg-vis-detail-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.kg-vis-detail-title h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.kg-vis-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kg-vis-detail-section h4 {
   margin: 0;
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
-}
-
-.kg-vis-detail-body {
-  padding: 16px;
-}
-
-.kg-vis-detail-row {
-  margin-bottom: 12px;
-}
-
-.kg-vis-detail-label {
-  font-size: 12px;
   color: var(--text-secondary);
-  margin-bottom: 4px;
-}
-
-.kg-vis-detail-value {
-  font-size: 14px;
-  color: var(--text-primary);
 }
 
 .kg-vis-detail-attrs {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  background: var(--surface-color);
+  padding: 12px;
+  border-radius: var(--radius-sm);
 }
 
-.kg-vis-detail-attr {
+.kg-vis-detail-attr-item {
   display: flex;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .kg-vis-detail-attr-key {
   color: var(--text-secondary);
+  min-width: 80px;
+  flex-shrink: 0;
 }
 
 .kg-vis-detail-attr-value {
   color: var(--text-primary);
+  word-break: break-all;
 }
 
-.kg-vis-detail-actions {
+.kg-vis-detail-stats {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-/* 过渡动画 */
-.slide-right-enter-active,
-.slide-right-leave-active {
-  transition: all 0.3s ease;
-}
-
-.slide-right-enter-from,
-.slide-right-leave-to {
-  transform: translateX(-100%);
-  opacity: 0;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 /* 深色主题 */
 .dark-theme .kg-vis-toolbar,
 .dark-theme .kg-vis-legend,
-.dark-theme .kg-vis-zoom,
-.dark-theme .kg-vis-detail-panel {
+.dark-theme .kg-vis-zoom {
   background: var(--card-background);
   border-color: var(--border-color);
+}
+
+/* G6 节点标签样式增强 */
+:deep(.g6-node-label) {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+:deep(.g6-node-highlight) {
+  filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.6));
+}
+
+:deep(.g6-node-inactive) {
+  opacity: 0.3;
+}
+
+:deep(.g6-edge-inactive) {
+  opacity: 0.2;
 }
 </style>

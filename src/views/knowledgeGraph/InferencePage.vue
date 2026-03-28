@@ -186,23 +186,61 @@
     <div class="kg-inference-content" v-if="currentMode === 'chain'">
       <div class="kg-inference-form">
         <h3>推理链生成</h3>
-        <p class="kg-inference-desc">基于知识图谱生成推理链，解释问题的答案</p>
+        <p class="kg-inference-desc">基于知识图谱生成推理链，分析实体间的关系路径</p>
 
         <el-form :model="chainForm" label-width="100px">
-          <el-form-item label="问题">
-            <el-input
-              v-model="chainForm.question"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入要推理的问题，例如：张三和李四是什么关系？"
-            />
+          <el-form-item label="起始实体">
+            <el-select
+              v-model="chainForm.startEntity"
+              placeholder="选择起始实体"
+              filterable
+              style="width: 100%"
+              :loading="loadingEntities"
+            >
+              <el-option
+                v-for="entity in availableEntities"
+                :key="entity.entity_id"
+                :label="entity.name"
+                :value="entity.entity_id"
+              >
+                <span style="margin-right: 8px">{{ getEntityTypeIcon(entity.entity_type) }}</span>
+                {{ entity.name }}
+              </el-option>
+            </el-select>
           </el-form-item>
 
-          <el-form-item label="推理模式">
-            <el-radio-group v-model="chainForm.mode">
-              <el-radio label="explain">解释型推理</el-radio>
-              <el-radio label="deductive">演绎推理</el-radio>
-              <el-radio label="inductive">归纳推理</el-radio>
+          <el-form-item label="目标实体">
+            <el-select
+              v-model="chainForm.endEntity"
+              placeholder="选择目标实体（可选）"
+              filterable
+              clearable
+              style="width: 100%"
+              :loading="loadingEntities"
+            >
+              <el-option
+                v-for="entity in availableEntities"
+                :key="entity.entity_id"
+                :label="entity.name"
+                :value="entity.entity_id"
+              >
+                <span style="margin-right: 8px">{{ getEntityTypeIcon(entity.entity_type) }}</span>
+                {{ entity.name }}
+              </el-option>
+            </el-select>
+            <div class="kg-form-hint">不选择则返回起始实体的邻域</div>
+          </el-form-item>
+
+          <el-form-item label="最大跳数">
+            <el-slider v-model="chainForm.maxHops" :min="1" :max="5" :marks="{ 1: '1', 3: '3', 5: '5' }" />
+            <div class="kg-form-hint">推理链的最大深度</div>
+          </el-form-item>
+
+          <el-form-item label="推理类型">
+            <el-radio-group v-model="chainForm.reasoningType">
+              <el-radio label="shortest">最短路径</el-radio>
+              <el-radio label="all">所有路径</el-radio>
+              <el-radio label="diverse">多样化路径</el-radio>
             </el-radio-group>
           </el-form-item>
 
@@ -334,7 +372,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useNamespaceStore } from '../../stores/knowledgeGraph/namespaceStore.js'
 import { useEntityStore } from '../../stores/knowledgeGraph/entityStore.js'
@@ -382,10 +420,12 @@ const neighborhoodData = ref({
   edges: []
 })
 
-// 推理链
+// 推理链 - 修正后的表单格式
 const chainForm = ref({
-  question: '',
-  mode: 'explain'
+  startEntity: '',
+  endEntity: '',
+  maxHops: 3,
+  reasoningType: 'shortest'
 })
 const chainResult = ref(null)
 
@@ -403,18 +443,28 @@ const avgTime = computed(() => {
   return Math.round(queryTimes.value.reduce((a, b) => a + b, 0) / queryTimes.value.length)
 })
 
+// 实体类型配置
+const entityTypes = [
+  { value: 'Person', label: '人物', icon: '👤' },
+  { value: 'Organization', label: '组织', icon: '🏢' },
+  { value: 'Location', label: '地点', icon: '📍' },
+  { value: 'Concept', label: '概念', icon: '💡' },
+  { value: 'Event', label: '事件', icon: '📅' },
+  { value: 'Document', label: '文档', icon: '📄' },
+  { value: 'Technology', label: '技术', icon: '⚙️' },
+  { value: 'Product', label: '产品', icon: '📦' }
+]
+
 // 实体类型图标
 function getEntityTypeIcon(type) {
-  const icons = {
-    '人物': '👤',
-    '组织': '🏢',
-    '地点': '📍',
-    '概念': '💡',
-    '事件': '📅',
-    '文档': '📄',
-    '技术': '⚙️'
-  }
-  return icons[type] || '📦'
+  const config = entityTypes.find(t => t.value === type)
+  return config?.icon || '📦'
+}
+
+// 实体类型中文名
+function getEntityTypeName(type) {
+  const config = entityTypes.find(t => t.value === type)
+  return config?.label || type
 }
 
 // 根据ID获取实体名称
@@ -423,22 +473,34 @@ function getEntityNameById(id) {
   return entity?.name || id
 }
 
+// 根据ID获取实体类型
+function getEntityTypeById(id) {
+  const entity = availableEntities.value.find(e => e.entity_id === id)
+  return entity?.entity_type || 'Unknown'
+}
+
 // 切换模式
 function switchMode(mode) {
   currentMode.value = mode
 }
 
-// 加载实体列表
+// 加载实体列表 - 修复size参数，API最大限制为500
 async function loadEntities() {
   const namespaceId = namespaceStore.currentNamespaceId
-  if (!namespaceId) return
+  if (!namespaceId) {
+    console.log('InferencePage: 没有选择命名空间')
+    return
+  }
 
   loadingEntities.value = true
   try {
-    await entityStore.getEntityList(namespaceId, { page: 1, size: 1000 })
+    // API限制size最大为500，修改为500
+    await entityStore.getEntityList(namespaceId, { page: 1, size: 500 })
     availableEntities.value = entityStore.entities || []
+    console.log('InferencePage: 实体列表加载完成，共', availableEntities.value.length, '个实体')
   } catch (error) {
     console.error('加载实体列表失败:', error)
+    ElMessage.error('加载实体列表失败: ' + (error.message || '未知错误'))
   } finally {
     loadingEntities.value = false
   }
@@ -481,7 +543,7 @@ async function handlePathQuery() {
     queryTimes.value.push(Date.now() - startTime)
   } catch (error) {
     console.error('路径查询失败:', error)
-    ElMessage.error('查询失败')
+    ElMessage.error('查询失败: ' + (error.message || '未知错误'))
   } finally {
     querying.value = false
   }
@@ -518,16 +580,22 @@ async function handleNeighborhoodQuery() {
     queryTimes.value.push(Date.now() - startTime)
   } catch (error) {
     console.error('邻域查询失败:', error)
-    ElMessage.error('查询失败')
+    ElMessage.error('查询失败: ' + (error.message || '未知错误'))
   } finally {
     querying.value = false
   }
 }
 
-// 推理链生成
+// 推理链生成 - 使用正确的API格式
 async function handleChainGeneration() {
-  if (!chainForm.value.question.trim()) {
-    ElMessage.warning('请输入问题')
+  const namespaceId = namespaceStore.currentNamespaceId
+  if (!namespaceId) {
+    ElMessage.warning('请先选择知识图谱命名空间')
+    return
+  }
+
+  if (!chainForm.value.startEntity) {
+    ElMessage.warning('请选择起始实体')
     return
   }
 
@@ -535,25 +603,32 @@ async function handleChainGeneration() {
   const startTime = Date.now()
 
   try {
-    const namespaceId = namespaceStore.currentNamespaceId
-    const response = await generateReasoningChain(namespaceId, {
-      question: chainForm.value.question,
-      mode: chainForm.value.mode
-    })
+    // 根据API文档的正确格式
+    const data = {
+      namespace_id: namespaceId,
+      start_entity: chainForm.value.startEntity,
+      end_entity: chainForm.value.endEntity || undefined,
+      max_hops: chainForm.value.maxHops,
+      reasoning_type: chainForm.value.reasoningType
+    }
+
+    console.log('InferencePage: 发送推理链请求', data)
+
+    const response = await generateReasoningChain(data)
 
     if (response.code === 200) {
       chainResult.value = response.data
       ElMessage.success('推理链生成成功')
     }
-
-    queryCount.value++
-    queryTimes.value.push(Date.now() - startTime)
   } catch (error) {
     console.error('推理链生成失败:', error)
-    ElMessage.error('生成失败')
+    ElMessage.error('生成失败: ' + (error.message || '未知错误'))
   } finally {
     querying.value = false
   }
+
+  queryCount.value++
+  queryTimes.value.push(Date.now() - startTime)
 }
 
 // 连通性检查
@@ -584,11 +659,18 @@ async function handleConnectivityCheck() {
     queryTimes.value.push(Date.now() - startTime)
   } catch (error) {
     console.error('连通性检查失败:', error)
-    ElMessage.error('检查失败')
+    ElMessage.error('检查失败: ' + (error.message || '未知错误'))
   } finally {
     querying.value = false
   }
 }
+
+// 监听命名空间变化
+watch(() => namespaceStore.currentNamespaceId, (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    loadEntities()
+  }
+})
 
 // 初始化
 onMounted(async () => {

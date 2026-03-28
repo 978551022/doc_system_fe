@@ -1,0 +1,271 @@
+/**
+ * ============================================================
+ * 主题样式 - Theme Styles
+ * ============================================================
+ * 浅色/深色主题切换，主题变体
+ * ============================================================
+ */
+
+/* ========== 主题过渡效果 ========== */
+
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color var(--duration-normal) var(--easing-default),
+              color var(--duration-normal) var(--easing-default),
+              border-color var(--duration-normal) var(--easing-default),
+              box-shadow var(--duration-normal) var(--easing-default) !important;
+}
+
+/* ========== 浅色主题 ========== */
+
+.light-theme {
+  color-scheme: light;
+}
+
+/* ========== 深色主题 ========== */
+
+.dark-theme {
+  color-scheme: dark;
+}
+
+.dark-theme .card {
+  background: var(--card-background);
+  border-color: var(--border-color);
+}
+
+.dark-theme .input {
+  background: var(--input-background);
+  border-color: var(--input-border);
+}
+
+.dark-theme .tag {
+  background: var(--surface-color);
+  border-color: var(--border-color);
+}
+
+.dark-theme .dropdown-menu {
+  background: var(--card-background);
+  border-color: var(--border-color);
+}
+
+.dark-theme .dropdown-item {
+  color: var(--text-primary);
+}
+
+.dark-theme .dropdown-item:hover {
+  background: var(--surface-color);
+}
+
+/* ========== 高对比度主题 ========== */
+
+.high-contrast {
+  --primary-color: #0000ff;
+  --text-primary: #000000;
+  --text-secondary: #1a1a1a;
+  --border-color: #000000;
+  --background-color: #ffffff;
+}
+
+.dark-theme.high-contrast {
+  --primary-color: #00ffff;
+  --text-primary: #ffffff;
+  --text-secondary: #e5e5e5;
+  --border-color: #ffffff;
+  --background-color: #000000;
+}
+
+/* ========== 护眼主题 ========== */
+
+.warm-theme {
+  --background-color: #fdf6e3;
+  --card-background: #fdf6e3;
+  --text-primary: #5c4b37;
+  --text-secondary: #7c6a54;
+  --border-color: #d4c4a8;
+}
+
+.cool-theme {
+  --background-color: #e8f4f8;
+  --card-background: #e8f4f8;
+  --text-primary: #2c4a52;
+  --text-secondary: #4a6a72;
+  --border-color: #a8c8d0;
+}
+
+/* ========== 玻璃态效果 ========== */
+
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark-theme .glass {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.dark-theme .glass-strong {
+  background: rgba(30, 41, 59, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ========== 渐变背景主题 ========== */
+
+.gradient-bg {
+  background: var(--gradient-mesh);
+  background-size: 200% 200%;
+  animation: gradient-shift 20s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+/* ========== 霓虹主题 ========== */
+
+.neon-theme {
+  --primary-color: #ff00ff;
+  --primary-hover: #ff00aa;
+  --primary-light: #ff88ff;
+  --accent-color: #00ffff;
+  --background-color: #0a0a0a;
+  --card-background: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #cccccc;
+  --border-color: #333333;
+}
+
+.neon-theme .btn-primary {
+  box-shadow: 0 0 10px var(--primary-color),
+              0 0 20px var(--primary-color),
+              0 0 40px var(--primary-color);
+}
+
+.neon-theme .input:focus {
+  box-shadow: 0 0 10px var(--primary-color);
+}
+
+/* ========== 极简主题 ========== */
+
+.minimal-theme {
+  --primary-color: #000000;
+  --background-color: #ffffff;
+  --card-background: #ffffff;
+  --border-color: #e5e5e5;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+}
+
+.dark-theme.minimal-theme {
+  --primary-color: #ffffff;
+  --background-color: #000000;
+  --card-background: #000000;
+  --border-color: #333333;
+}
+
+/* ========== 主题切换动画 ========== */
+
+.theme-icon {
+  position: relative;
+  width: 20px;
+  height: 20px;
+}
+
+.theme-icon .sun,
+.theme-icon .moon {
+  position: absolute;
+  transition: var(--transition);
+}
+
+.theme-icon .moon {
+  opacity: 0;
+  transform: rotate(90deg);
+}
+
+.dark-theme .theme-icon .sun {
+  opacity: 0;
+  transform: rotate(-90deg);
+}
+
+.dark-theme .theme-icon .moon {
+  opacity: 1;
+  transform: rotate(0);
+}
+
+/* ========== 主题切换按钮样式 ========== */
+
+.theme-toggle {
+  position: relative;
+  width: 60px;
+  height: 28px;
+  background: linear-gradient(135deg, #87CEEB 0%, #FFD700 100%);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.dark-theme .theme-toggle {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.theme-toggle::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.dark-theme .theme-toggle::before {
+  left: 35px;
+  background: #f0f0f0;
+  box-shadow: inset -4px -2px 0 0px #d4d4d4;
+}
+
+/* ========== 主题色板选择器 ========== */
+
+.theme-palette {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.theme-color {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: var(--transition-fast);
+}
+
+.theme-color:hover {
+  transform: scale(1.1);
+}
+
+.theme-color.active {
+  border-color: var(--text-primary);
+}
+
+.theme-color--blue { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.theme-color--purple { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.theme-color--green { background: linear-gradient(135deg, #10b981, #059669); }
+.theme-color--orange { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.theme-color--red { background: linear-gradient(135deg, #ef4444, #dc2626); }
+.theme-color--pink { background: linear-gradient(135deg, #ec4899, #db2777); }

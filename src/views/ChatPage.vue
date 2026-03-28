@@ -285,6 +285,7 @@ import { ElMessage } from 'element-plus'
 import { uploadDocument } from '../api/document.js'
 import { intelligentQuery, getAvailableModels, exportConversation } from '../api/intelligentSearch.js'
 import userState from '../utils/userStore.js'
+import { chatConfig, initChatConfig } from '../utils/chatConfig.js'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/atom-one-dark.css'
@@ -510,10 +511,38 @@ let waveformData = null              // 波形数据
 // ChatInput组件引用
 const chatInputRef = ref(null)
 
-// 当前选择的模型和相关配置
-const currentModel = ref(localStorage.getItem('selectedModel') || 'deepseek-chat')
-const onlineSearch = ref(localStorage.getItem('onlineSearch') === 'true')
-const deepReasoning = ref(localStorage.getItem('deepReasoning') === 'true')
+// 初始化配置（迁移旧数据）
+onMounted(() => {
+  initChatConfig()
+})
+
+// 当前选择的模型和相关配置（使用统一配置管理）
+const currentModel = ref(chatConfig.get('selectedModel'))
+const onlineSearch = ref(chatConfig.get('onlineSearch'))
+const deepReasoning = ref(chatConfig.get('deepReasoning'))
+
+// 监听配置变化（来自其他组件的修改）
+let unsubscribeConfigChange = null
+
+onMounted(() => {
+  unsubscribeConfigChange = chatConfig.onChange((config) => {
+    if (config.selectedModel !== undefined) {
+      currentModel.value = config.selectedModel
+    }
+    if (config.onlineSearch !== undefined) {
+      onlineSearch.value = config.onlineSearch
+    }
+    if (config.deepReasoning !== undefined) {
+      deepReasoning.value = config.deepReasoning
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (unsubscribeConfigChange) {
+    unsubscribeConfigChange()
+  }
+})
 
 // 输入框收缩状态
 const isInputCollapsed = ref(false)
@@ -555,7 +584,7 @@ const handlePauseGeneration = () => {
 // 处理模型变化
 const handleModelChange = (modelId) => {
   currentModel.value = modelId
-  localStorage.setItem('selectedModel', modelId)
+  chatConfig.set('selectedModel', modelId)
 }
 
 // 从消息继续生成（点击消息操作栏的继续生成按钮）
@@ -1522,19 +1551,9 @@ const retryMessage = async (message) => {
     return
   }
 
-  // 从localStorage读取当前开关状态
-  let onlineSearch = false
-  let deepReasoning = false
-  try {
-    const raw = localStorage.getItem('chatConfig')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      onlineSearch = !!parsed.isInternetSearchEnabled
-      deepReasoning = !!parsed.isDeepReasoningEnabled
-    }
-  } catch (error) {
-    console.error('读取配置失败:', error)
-  }
+  // 使用统一配置管理获取当前开关状态
+  const onlineSearch = chatConfig.get('onlineSearch')
+  const deepReasoning = chatConfig.get('deepReasoning')
 
   if (message.role === 'user') {
     // 用户消息：重新发送
@@ -1705,21 +1724,12 @@ let voiceUploadId = null // 保存语音上传ID用于续传
 let voiceOnlineSearch = false // 语音消息的联网搜索配置
 let voiceDeepReasoning = false // 语音消息的深度推理配置
 
-// 获取当前聊天配置
+// 获取当前聊天配置（使用统一配置管理）
 const getVoiceChatConfig = () => {
-  let onlineSearch = false
-  let deepReasoning = false
-  try {
-    const raw = localStorage.getItem('chatConfig')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      onlineSearch = !!parsed.isInternetSearchEnabled
-      deepReasoning = !!parsed.isDeepReasoningEnabled
-    }
-  } catch (error) {
-    console.error('读取配置失败:', error)
+  return {
+    onlineSearch: chatConfig.get('onlineSearch'),
+    deepReasoning: chatConfig.get('deepReasoning')
   }
-  return { onlineSearch, deepReasoning }
 }
 
 // 处理语音消息（后端返回识别结果和AI回复）
@@ -2846,30 +2856,19 @@ defineExpose({
   setRecordingState,
   updateWaveformData,
   initializeConversation,
-  // 获取聊天配置
+  // 获取聊天配置（使用统一配置管理）
   getChatConfig: () => {
-    let onlineSearch = false
-    let deepReasoning = false
-    try {
-      const raw = localStorage.getItem('chatConfig')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        onlineSearch = !!parsed.isInternetSearchEnabled
-        deepReasoning = !!parsed.isDeepReasoningEnabled
-      }
-    } catch (error) {
-      console.error('读取配置失败:', error)
-    }
     return {
       modelName: selectedModel.value,
-      onlineSearch,
-      deepReasoning
+      onlineSearch: chatConfig.get('onlineSearch'),
+      deepReasoning: chatConfig.get('deepReasoning')
     }
   }
 })
 </script>
 
 <style scoped>
+/* ========== 聊天页面容器 ========== */
 .chat-page {
   width: 100%;
   height: 100%;
@@ -2899,24 +2898,24 @@ defineExpose({
   margin: 0 auto;
   padding: 24px 20px;
   padding-bottom: 40px;
-  /* 确保录音时波形始终在底部 */
   min-height: calc(100vh - 300px);
   display: flex;
   flex-direction: column;
 }
 
+/* ========== 消息样式 ========== */
 .chat-message {
   display: flex;
   margin-bottom: 24px;
-  animation: fadeIn 0.3s ease;
+  animation: fade-in-up 0.3s ease;
   padding: 0;
   transition: var(--transition);
 }
 
-@keyframes fadeIn {
+@keyframes fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -2950,20 +2949,21 @@ defineExpose({
   order: 1;
 }
 
+/* ========== 头像样式 ========== */
 .chat-avatar {
   width: 40px;
   height: 40px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-md);
+  transition: var(--transition);
 }
 
 .chat-avatar--user {
   background: var(--primary-gradient);
-  border: 2px solid rgba(255, 255, 255, 0.7);
+  border: 2px solid var(--border-color);
 }
 
 .chat-avatar--assistant {
@@ -2994,11 +2994,11 @@ defineExpose({
 }
 
 .chat-message:hover .chat-avatar {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
-/* 机器人面部细节，让头像看起来更像聊天机器人 */
+/* 机器人面部细节 */
 .chat-avatar__robot-face {
   width: 70%;
   height: 70%;
@@ -3036,7 +3036,6 @@ defineExpose({
 
 .chat-message__content {
   max-width: 70%;
-  /* 移除 min-width 限制，让宽度自适应内容 */
 }
 
 /* 用户消息内容与头像之间的间距优化 */
@@ -3061,6 +3060,7 @@ defineExpose({
   order: 2;
 }
 
+/* ========== 消息文本气泡 ========== */
 .chat-message__text {
   padding: 12px 16px;
   border-radius: var(--radius-lg);
@@ -3084,18 +3084,17 @@ defineExpose({
   border-bottom-right-radius: var(--radius-sm);
 }
 
-/* 浅色模式下用户消息背景色优化 - 使用浅色背景 */
+/* 浅色模式下用户消息背景色优化 */
 :not(.dark-theme) .chat-message--user .chat-message__text {
-  background: #f0f4f8;
-  color: var(--text-primary);
-  border: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+  color: white;
 }
 
-/* 深色模式下用户消息背景色优化 - 使用深色背景 */
+/* 深色模式下用户消息背景色优化 */
 .dark-theme .chat-message--user .chat-message__text {
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
+  background: var(--surface-color);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
 }
 
 .chat-message--assistant .chat-message__text {
