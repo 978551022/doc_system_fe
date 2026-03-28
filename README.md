@@ -1,11 +1,23 @@
-# 个人文档系统 (Personal Doc System)
+# 智启未来 (Personal Doc System)
 
-> 一个基于现代前端技术栈构建的智能文档管理系统，集成AI对话、文档管理、API测试等功能
+> 一个基于现代前端技术栈构建的智能工作平台，集成AI对话、知识图谱、可视化编排、文档管理等功能
 
 [![Vue 3](https://img.shields.io/badge/Vue-3.5-42b883)](https://vuejs.org/)
 [![Vite](https://img.shields.io/badge/Vite-6.0-646cff)](https://vitejs.dev/)
 [![Element Plus](https://img.shields.io/badge/Element_Plus-2.11-409eff)](https://element-plus.org/)
+[![Vue Router](https://img.shields.io/badge/Vue_Router-4.0-42b883)](https://router.vuejs.org/)
+[![Axios](https://img.shields.io/badge/Axios-1.7-5a29e4)](https://axios-http.com/)
+[![Marked](https://img.shields.io/badge/Marked-12.0-000000)](https://marked.js.org/)
+[![Three.js](https://img.shields.io/badge/Three.js-0.160-000000)](https://threejs.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+## 🖼️ 界面预览
+
+### 登录页面
+![登录页面](./public/dengluye.png)
+
+### 首页概览
+![首页概览](./public/shouye.png)
 
 ## ✨ 功能亮点
 
@@ -32,6 +44,28 @@
 - 支持多种HTTP方法
 - 响应结果格式化展示
 
+### 🕸️ 知识图谱
+- **可视化图谱**：基于Canvas的交互式实体关系图
+- **实体管理**：实体创建、编辑、删除，支持命名空间组织
+- **关系探索**：多跳关系查询，路径发现与可视化
+- **图谱推理**：基于知识图谱的智能推理与问答
+- **统计面板**：图谱数据统计与分析
+- **文档构建**：从知识图谱自动生成结构化文档
+
+### 🎨 画布编排
+- **可视化工作流**：拖拽式节点编排，直观清晰
+- **多种节点类型**：开始、结束、条件、循环、智能体节点
+- **执行监控**：实时查看工作流执行状态与日志
+- **模板库**：预设工作流模板，快速启动
+- **节点配置**：灵活配置节点参数与连接关系
+
+### 🎨 登录体验
+- **3D粒子特效**：Three.js构建的沉浸式背景动画
+- **粒子Logo**：Canvas粒子汇聚成Logo的动态效果
+- **打字机标语**：逐字展示"智启未来"主题标语
+- **波浪动画**：底部SVG多层波浪装饰
+- **科技感UI**：渐变装饰、发光按钮、玻璃态输入框
+
 ### 🎨 界面特性
 - **主题切换**：浅色/深色/跟随系统，使用 CSS 变量实现
 - **响应式设计**：适配桌面和移动设备
@@ -50,10 +84,42 @@
 | Vue Router 4 | 路由管理，支持嵌套路由和导航守卫 |
 | Axios | HTTP客户端，支持请求拦截和响应处理 |
 | Vite | 下一代前端构建工具，极速开发体验 |
+| Three.js | 3D图形库，用于登录页粒子特效 |
 | marked | Markdown解析器，支持GFM（GitHub Flavored Markdown） |
 | highlight.js | 代码语法高亮，支持180+种编程语言 |
 
 ## 🎬 最近更新
+
+### v1.3.0 (2026-03)
+- ✨ **知识图谱功能**：
+  - 可视化实体关系图谱
+  - 实体/关系管理面板
+  - 路径探索与推理功能
+  - 图谱统计与文档构建
+- ✨ **画布编排功能**：
+  - 可视化工作流编辑器
+  - 多种节点类型支持
+  - 工作流执行监控
+  - 模板库与节点配置
+- 🎨 **登录页面升级**：
+  - Three.js 3D粒子背景特效
+  - Canvas粒子汇聚Logo动画
+  - 打字机效果标语展示
+  - SVG波浪装饰动画
+  - 科技感UI设计优化
+- 🔧 **界面优化**：
+  - 移除冗余的新建对话和历史记录按钮
+  - 优化侧边栏交互体验
+
+### v1.2.0 (2026-03)
+- ✨ **语音消息支持**：
+  - 支持语音输入，流式生成回复
+  - 实时语音识别与响应
+- 🐛 **深色模式优化**：
+  - 修复登录下拉菜单背景渲染问题
+- 💬 **聊天交互优化**：
+  - 优化聊天输入组件和界面交互
+  - 断点续传功能支持
 
 ### v1.1.0 (2026-03)
 - ✨ **聊天输入组件优化**：
@@ -102,26 +168,56 @@ npm run preview
 doc_system_fe/
 ├── src/
 │   ├── api/              # API接口封装
+│   │   ├── auth.js               # 认证接口
 │   │   ├── document.js           # 文档管理接口
-│   │   └── intelligentSearch.js  # 智能搜索接口
+│   │   ├── intelligentSearch.js  # 智能搜索接口
+│   │   ├── agent.js              # 智能体接口
+│   │   └── knowledgeGraph.js     # 知识图谱接口
 │   ├── components/       # 公共组件
 │   │   ├── ChatInput.vue         # 聊天输入组件
 │   │   ├── Header.vue            # 顶部导航
 │   │   ├── Sidebar.vue           # 侧边栏菜单
-│   │   └── ...
+│   │   ├── MainContainer.vue     # 主容器
+│   │   ├── knowledgeGraph/       # 知识图谱组件
+│   │   │   ├── canvas/           # 图谱画布
+│   │   │   ├── panels/           # 功能面板
+│   │   │   └── sidebar/          # 侧边栏
+│   │   └── workflow/             # 工作流组件
+│   │       ├── canvas/           # 工作流画布
+│   │       ├── nodes/            # 节点组件
+│   │       ├── panels/           # 配置面板
+│   │       └── templates/        # 模板库
 │   ├── utils/            # 工具函数
-│   │   └── userStore.js          # 用户状态管理
+│   │   ├── userStore.js          # 用户状态管理
+│   │   ├── chatConfig.js         # 聊天配置
+│   │   ├── knowledgeGraph/       # 知识图谱工具
+│   │   └── workflow/             # 工作流工具
+│   ├── stores/           # 状态管理
+│   │   ├── knowledgeGraphStore.js
+│   │   ├── workflowStore.js
+│   │   └── knowledgeGraph/       # 知识图谱子模块
+│   ├── styles/           # 全局样式
+│   │   ├── animations.css        # 动画效果
+│   │   ├── base.css              # 基础样式
+│   │   ├── components.css        # 组件样式
+│   │   ├── themes.css            # 主题样式
+│   │   └── tokens.css            # CSS变量
 │   ├── views/            # 页面组件
 │   │   ├── ChatPage.vue          # 智能对话页面
 │   │   ├── DocumentsPage.vue     # 文档管理页面
 │   │   ├── ApiTestPage.vue       # API测试页面
 │   │   ├── HistoryPage.vue       # 历史记录页面
 │   │   ├── SettingsPage.vue      # 设置页面
-│   │   └── LoginPage.vue         # 登录页面
+│   │   ├── LoginPage.vue         # 登录页面
+│   │   ├── KnowledgeGraphPage.vue # 知识图谱主页
+│   │   ├── CanvasWorkflow.vue    # 画布编排页面
+│   │   └── knowledgeGraph/       # 知识图谱子页面
 │   ├── router/           # 路由配置
 │   ├── App.vue           # 根组件
 │   └── main.js           # 入口文件
 ├── public/               # 静态资源
+│   ├── dengluye.png      # 登录页预览图
+│   └── shouye.png        # 首页预览图
 ├── index.html            # HTML模板
 ├── vite.config.js        # Vite配置
 └── package.json          # 项目配置
@@ -153,6 +249,8 @@ doc_system_fe/
 | / | - | 重定向到聊天页面 |
 | /chat | ChatPage | 智能对话 |
 | /documents | DocumentsPage | 文档管理 |
+| /knowledge-graph | KnowledgeGraphPage | 知识图谱 |
+| /canvas | CanvasWorkflow | 画布编排 |
 | /api-test | ApiTestPage | API测试 |
 | /history | HistoryPage | 历史记录 |
 | /settings | SettingsPage | 系统设置 |
