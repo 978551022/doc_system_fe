@@ -14,10 +14,10 @@
 ## 🖼️ 界面预览
 
 ### 登录页面
-![登录页面](./public/dengluye.png)
+![登录页面](./system_imgs/dengluye.png)
 
 ### 首页概览
-![首页概览](./public/shouye.png)
+![首页概览](./system_imgs/shouye.png)
 
 ## ✨ 功能亮点
 
