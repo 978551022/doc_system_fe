@@ -82,24 +82,27 @@
               <div v-if="loginMode === 'sms'" key="sms" class="login-mode-container">
                 <el-form ref="smsFormRef" :model="smsForm" :rules="smsRules" class="login-form" @submit.prevent="handleSmsLogin">
                   <el-form-item prop="phone">
-                    <div class="input-wrapper">
+                    <div class="input-wrapper" style="width: 100%;">
                       <div class="input-icon">
                         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M22 16.92V19.92C22.0011 20.1986 21.9441 20.4742 21.8325 20.7294C21.7209 20.9846 21.5573 21.2137 21.3521 21.4019C21.1468 21.5901 20.9046 21.7336 20.6407 21.8228C20.3769 21.912 20.0974 21.9452 19.82 21.92C16.7428 21.5857 13.787 20.5342 11.19 18.84C8.77382 17.2929 6.72533 15.2444 5.17819 12.8282C3.48002 10.2215 2.42838 7.25316 2.10002 4.16668C2.07523 3.89002 2.10795 3.61123 2.19619 3.34795C2.28443 3.08467 2.42659 2.84284 2.61346 2.63757C2.80032 2.4323 3.02815 2.26815 3.28238 2.15558C3.53661 2.04301 3.81163 1.98472 4.09002 1.98468H7.09002C7.58284 1.97863 8.05813 2.17238 8.41619 2.52676C8.77426 2.88114 8.98884 3.36655 9.02002 3.87868C9.04002 4.16468 9.08002 4.44468 9.14002 4.71868C9.25738 5.26271 9.15656 5.82857 8.85624 6.30128C8.55591 6.774 8.07722 7.11908 7.52002 7.26668L6.44002 7.56668C7.31125 9.68564 8.66619 11.5562 10.4 13.02C11.8659 14.7513 13.7365 16.1042 15.8554 16.9747L16.1554 15.8947C16.303 15.3375 16.6481 14.8588 17.1208 14.5585C17.5935 14.2581 18.1593 14.1573 18.7034 14.2747C18.9774 14.3347 19.2574 14.3747 19.5434 14.3947C20.0555 14.4258 20.5409 14.6404 20.8953 14.9985C21.2497 15.3566 21.4434 15.8318 21.4374 16.3247L22 16.92H22Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                       </div>
-                      <el-input
+                      <el-autocomplete
                         v-model="smsForm.phone"
+                        :fetch-suggestions="querySearchPhones"
                         placeholder="手机号"
                         size="large"
-                        class="custom-input"
+                        class="custom-input autocomplete-input"
                         @keyup.enter="handleSmsLogin"
+                        @select="handlePhoneSelect"
+                        :trigger-on-focus="false"
                       />
                     </div>
                   </el-form-item>
 
                   <el-form-item prop="code">
-                    <div class="input-wrapper code-wrapper">
+                    <div class="input-wrapper code-wrapper" style="width: 100%;">
                       <div class="input-icon">
                         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M22 10.878V13.122C22.0011 13.3129 21.9628 13.5022 21.8872 13.6781C21.8116 13.854 21.7004 14.0129 21.5605 14.1444C21.4207 14.2759 21.2554 14.3773 21.0746 14.4418C20.8938 14.5064 20.7014 14.5326 20.51 14.519H20.5C19.986 14.517 19.491 14.329 19.107 13.99C18.667 13.603 18.247 13.194 17.847 12.763C17.447 12.332 17.067 11.883 16.707 11.416C16.247 10.816 15.827 10.196 15.447 9.55597C15.067 8.91597 14.727 8.25597 14.427 7.57597C14.127 6.89597 13.867 6.20597 13.647 5.50597C13.427 4.80597 13.247 4.09597 13.107 3.37597C13.047 3.07597 13.007 2.77597 12.977 2.47597C12.9468 2.15115 12.9866 1.82309 13.0932 1.51544C13.1999 1.20779 13.3708 0.928394 13.5936 0.697311C13.8164 0.466228 14.0857 0.289359 14.3822 0.180136C14.6787 0.0709125 14.995 -0.0175716 15.317 0.00297286H18.317C18.8098 -0.00308154 19.2862 0.189903 19.6452 0.544386C20.0042 0.898869 20.2187 1.38492 20.247 1.89797C20.267 2.18397 20.297 2.46397 20.337 2.73797C20.447 3.5047 20.6137 4.26291 20.837 5.00597C21.057 5.73797 21.327 6.45597 21.647 7.15797C21.967 7.85997 22.337 8.54597 22.757 9.21597C23.177 9.88597 23.647 10.54 24.167 11.17C24.687 11.8 25.257 12.41 25.877 12.99C26.497 13.57 27.157 14.12 27.857 14.64C28.557 15.16 29.297 15.64 30.077 16.08C30.857 16.52 31.677 16.92 32.537 17.28C33.397 17.64 34.297 17.96 35.237 18.24C36.177 18.52 37.157 18.76 38.167 18.96C39.177 19.16 40.217 19.32 41.287 19.44C42.357 19.56 43.457 19.64 44.577 19.68C45.697 19.72 46.837 19.72 47.997 19.68L22 10.878ZM22 10.878V13.122C22.0011 13.3129 21.9628 13.5022 21.8872 13.6781C21.8116 13.854 21.7004 14.0129 21.5605 14.1444C21.4207 14.2759 21.2554 14.3773 21.0746 14.4418C20.8938 14.5064 20.7014 14.5326 20.51 14.519H20.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -143,25 +146,28 @@
               <div v-else key="password" class="login-mode-container">
                 <el-form ref="passwordFormRef" :model="passwordForm" :rules="passwordRules" class="login-form" @submit.prevent="handlePasswordLogin">
                   <el-form-item prop="identifier">
-                    <div class="input-wrapper">
+                    <div class="input-wrapper" style="width: 100%;">
                       <div class="input-icon">
                         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M20 21V19C20 17.9391 19.5786 16.9217 18.8284 16.1716C18.0783 15.4214 17.0609 15 16 15H8C6.93913 15 5.92172 15.4214 5.17157 16.1716C4.42143 16.9217 4 17.9391 4 19V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                           <circle cx="12" cy="7" r="4" stroke="currentColor" stroke-width="2"/>
                         </svg>
                       </div>
-                      <el-input
+                      <el-autocomplete
                         v-model="passwordForm.identifier"
+                        :fetch-suggestions="querySearchAccounts"
                         placeholder="手机号 / 邮箱 / 用户名"
                         size="large"
-                        class="custom-input"
+                        class="custom-input autocomplete-input"
                         @keyup.enter="handlePasswordLogin"
+                        @select="handleAccountSelect"
+                        :trigger-on-focus="false"
                       />
                     </div>
                   </el-form-item>
 
                   <el-form-item prop="password">
-                    <div class="input-wrapper">
+                    <div class="input-wrapper" style="width: 100%;">
                       <div class="input-icon">
                         <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <rect x="3" y="11" width="18" height="11" rx="2" ry="2" stroke="currentColor" stroke-width="2"/>
@@ -196,12 +202,14 @@
 
             <!-- 登录模式切换 -->
             <div class="mode-toggle" @click="toggleLoginMode">
-              <span v-if="loginMode === 'sms'">
-                使用密码登录 <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
-              <span v-else>
-                使用验证码登录 <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </span>
+              <template v-if="loginMode === 'sms'">
+                使用密码登录
+                <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </template>
+              <template v-else>
+                使用验证码登录
+                <svg class="toggle-arrow" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </template>
             </div>
 
             <!-- 分隔线 -->
@@ -232,22 +240,49 @@
       <!-- 微信扫码弹窗 -->
       <el-dialog
         v-model="wechatDialogVisible"
-        title="微信扫码登录"
-        width="360px"
+        title=""
+        width="380px"
         center
         :close-on-click-modal="false"
+        :show-close="true"
         class="wechat-dialog"
+        destroy-on-close
       >
+        <template #header>
+          <div class="wechat-dialog-header">
+            <div class="wechat-icon">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.01-.27-.027-.407-.03zm-2.53 3.274c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.969-.982z"/>
+              </svg>
+            </div>
+            <h3 class="wechat-dialog-title">微信扫码登录</h3>
+            <p class="wechat-dialog-subtitle">请使用微信扫描下方二维码</p>
+          </div>
+        </template>
+
         <div class="wechat-qrcode-container">
           <div v-if="wechatQrUrl" class="qrcode-wrapper">
-            <img :src="wechatQrUrl" alt="微信二维码" class="wechat-qrcode" />
-            <p class="qrcode-tip">请使用微信扫描二维码登录</p>
+            <div class="qrcode-image-wrapper">
+              <img :src="wechatQrUrl" alt="微信二维码" class="wechat-qrcode" />
+              <div class="qrcode-scan-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/>
+                </svg>
+              </div>
+            </div>
+            <p class="qrcode-tip">推荐使用微信扫码快速登录</p>
           </div>
           <div v-else class="qrcode-loading">
-            <el-icon class="is-loading"><Loading /></el-icon>
+            <div class="loading-spinner"></div>
             <p>正在获取二维码...</p>
           </div>
         </div>
+
+        <template #footer>
+          <div class="wechat-dialog-footer">
+            <p class="footer-tip">打开微信 → 扫一扫 → 扫描二维码登录</p>
+          </div>
+        </template>
       </el-dialog>
     </div>
   </el-config-provider>
@@ -302,6 +337,84 @@ const passwordForm = reactive({
   identifier: '',
   password: ''
 })
+
+// 历史登录记录
+const loginHistory = reactive({
+  phones: [],
+  accounts: []
+})
+
+// 加载历史登录记录
+const loadLoginHistory = () => {
+  try {
+    const saved = localStorage.getItem('loginHistory')
+    if (saved) {
+      const history = JSON.parse(saved)
+      loginHistory.phones = history.phones || []
+      loginHistory.accounts = history.accounts || []
+    }
+  } catch (e) {
+    console.error('加载历史登录记录失败:', e)
+  }
+}
+
+// 保存登录记录
+const saveLoginHistory = (type, value) => {
+  if (!value || value.trim() === '') return
+
+  const list = type === 'phone' ? loginHistory.phones : loginHistory.accounts
+  value = value.trim()
+
+  // 移除已存在的相同值
+  const index = list.indexOf(value)
+  if (index > -1) {
+    list.splice(index, 1)
+  }
+
+  // 添加到开头
+  list.unshift(value)
+
+  // 最多保存10条
+  if (list.length > 10) {
+    list.length = 10
+  }
+
+  // 保存到localStorage
+  try {
+    localStorage.setItem('loginHistory', JSON.stringify({
+      phones: loginHistory.phones,
+      accounts: loginHistory.accounts
+    }))
+  } catch (e) {
+    console.error('保存登录记录失败:', e)
+  }
+}
+
+// 手机号自动完成建议
+const querySearchPhones = (queryString, cb) => {
+  const results = queryString
+    ? loginHistory.phones.filter(item => item.toLowerCase().includes(queryString.toLowerCase()))
+    : loginHistory.phones
+  cb(results.map(item => ({ value: item })))
+}
+
+// 账号自动完成建议
+const querySearchAccounts = (queryString, cb) => {
+  const results = queryString
+    ? loginHistory.accounts.filter(item => item.toLowerCase().includes(queryString.toLowerCase()))
+    : loginHistory.accounts
+  cb(results.map(item => ({ value: item })))
+}
+
+// 选择手机号
+const handlePhoneSelect = (item) => {
+  smsForm.phone = item.value
+}
+
+// 选择账号
+const handleAccountSelect = (item) => {
+  passwordForm.identifier = item.value
+}
 
 const smsFormRef = ref(null)
 const passwordFormRef = ref(null)
@@ -374,6 +487,13 @@ const handleLoginSuccess = (response, loginType = 'sms') => {
           avatarUrl = '/api/v1' + normalizedPath
         }
       }
+    }
+
+    // 保存登录历史
+    if (loginType === 'sms' && smsForm.phone) {
+      saveLoginHistory('phone', smsForm.phone)
+    } else if (loginType === 'password' && passwordForm.identifier) {
+      saveLoginHistory('account', passwordForm.identifier)
     }
 
     const userInfo = {
@@ -472,14 +592,30 @@ const handleWechatLogin = async () => {
 
   try {
     const redirectUri = encodeURIComponent(window.location.origin + '/wechat-callback')
+    console.log('获取微信二维码，redirectUri:', redirectUri)
     const response = await getWechatQrCodeUrl(redirectUri)
+    console.log('微信二维码响应:', response)
+
     if (response.success) {
-      wechatQrUrl.value = response.qr_url
+      // 检查返回的是 URL 还是 code
+      if (response.qr_url) {
+        wechatQrUrl.value = response.qr_url
+      } else if (response.qr_code || response.code) {
+        // 如果返回的是 code，使用 QR code 生成库
+        const qrCode = response.qr_code || response.code
+        wechatQrUrl.value = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCode)}`
+      } else {
+        console.warn('微信登录响应中没有找到 qr_url 或 qr_code:', response)
+        ElMessage.error('获取微信登录二维码失败：响应格式错误')
+      }
     } else {
-      ElMessage.error('获取微信登录二维码失败')
+      console.error('微信登录返回失败:', response)
+      ElMessage.error(response.message || '获取微信登录二维码失败')
     }
   } catch (error) {
-    ElMessage.error('获取微信登录二维码失败')
+    console.error('获取微信二维码错误:', error)
+    const errorMsg = error.response?.data?.detail || error.message || '获取微信登录二维码失败'
+    ElMessage.error(errorMsg)
   }
 }
 
@@ -906,6 +1042,7 @@ const handleResize = () => {
 onMounted(() => {
   checkDarkMode()
   startTypewriter()
+  loadLoginHistory() // 加载历史登录记录
 
   // 延迟初始化 Three.js，确保 DOM 已渲染
   setTimeout(() => {
@@ -1341,6 +1478,180 @@ onUnmounted(() => {
   display: none;
 }
 
+/* 移除表单验证红框，仅保留红字提示 */
+.login-form :deep(.el-form-item.is-error) {
+  margin-bottom: 24px;
+}
+
+.login-form :deep(.el-form-item.is-error .el-input__wrapper) {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.login-form :deep(.el-form-item.is-error .input-wrapper) {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  box-shadow: none !important;
+}
+
+.login-page:not(.dark-theme) .login-form :deep(.el-form-item.is-error .input-wrapper) {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+}
+
+.login-form :deep(.el-form-item.is-error .input-wrapper:focus-within) {
+  border-color: #6366F1 !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1) !important;
+}
+
+.login-page:not(.dark-theme) .login-form :deep(.el-form-item.is-error .input-wrapper:focus-within) {
+  background: #FFFFFF !important;
+}
+
+/* 保持红字提示样式 */
+.login-form :deep(.el-form-item__error) {
+  color: #F87171 !important;
+  font-size: 12px;
+  margin-top: 6px;
+  padding-left: 4px;
+}
+
+/* 自动完成输入框样式 */
+.autocomplete-input {
+  flex: 1;
+  height: 100%;
+  display: flex !important;
+  align-items: stretch !important;
+}
+
+/* 移除 el-autocomplete 外层容器的所有样式 */
+.autocomplete-input.el-input {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: stretch !important;
+}
+
+.autocomplete-input :deep(.el-input__wrapper) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  height: 100% !important;
+  min-height: auto !important;
+  border-radius: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.autocomplete-input :deep(.el-input__wrapper:hover) {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.autocomplete-input :deep(.el-input__wrapper.is-focus) {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.autocomplete-input :deep(.el-input__inner) {
+  color: #E0E7FF;
+  font-size: 15px;
+  background: transparent !important;
+  border: none !important;
+  height: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+  line-height: 1;
+  display: block !important;
+}
+
+.autocomplete-input :deep(.el-input__inner:focus) {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.autocomplete-input :deep(.el-input__inner::placeholder) {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* 隐藏 autocomplete 前后缀图标 */
+.autocomplete-input :deep(.el-input__prefix),
+.autocomplete-input :deep(.el-input__suffix) {
+  display: none !important;
+}
+
+/* 自动完成下拉列表样式 */
+:deep(.el-autocomplete__popper) {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  margin-top: 4px !important;
+}
+
+:deep(.el-autocomplete-suggestion) {
+  background: transparent;
+  border: none;
+}
+
+:deep(.el-autocomplete-suggestion__wrap) {
+  max-height: 200px;
+}
+
+:deep(.el-autocomplete-suggestion__list) {
+  padding: 4px;
+}
+
+:deep(.el-autocomplete-suggestion__li) {
+  padding: 10px 14px;
+  margin: 2px 0;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+:deep(.el-autocomplete-suggestion__li:hover),
+:deep(.el-autocomplete-suggestion__li.highlighted) {
+  background: rgba(99, 102, 241, 0.2);
+  color: #E0E7FF;
+}
+
+:deep(.el-autocomplete-suggestion__li.is-loading) {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.login-page:not(.dark-theme) :deep(.el-autocomplete__popper) {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.login-page:not(.dark-theme) :deep(.el-autocomplete-suggestion__li) {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.login-page:not(.dark-theme) :deep(.el-autocomplete-suggestion__li:hover),
+.login-page:not(.dark-theme) :deep(.el-autocomplete-suggestion__li.highlighted) {
+  background: rgba(99, 102, 241, 0.1);
+  color: #1E293B;
+}
+
+.login-page:not(.dark-theme) .autocomplete-input :deep(.el-input__inner) {
+  color: #1E293B;
+}
+
+.login-page:not(.dark-theme) .autocomplete-input :deep(.el-input__inner::placeholder) {
+  color: rgba(0, 0, 0, 0.35);
+}
+
 /* 验证码输入框 */
 .code-wrapper {
   padding-right: 4px;
@@ -1429,12 +1740,14 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 16px 0;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
   transition: all 0.3s ease;
   margin-bottom: 16px;
+  white-space: nowrap;
 }
 
 .mode-toggle:hover {
@@ -1444,7 +1757,7 @@ onUnmounted(() => {
 .toggle-arrow {
   width: 18px;
   height: 18px;
-  margin-left: 6px;
+  flex-shrink: 0;
   transition: transform 0.3s ease;
 }
 
@@ -1573,21 +1886,96 @@ onUnmounted(() => {
 
 /* 微信弹窗 */
 :deep(.wechat-dialog) {
-  background: rgba(30, 41, 59, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  border: none;
 }
 
 :deep(.wechat-dialog .el-dialog__header) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0;
+  border-bottom: none;
 }
 
-:deep(.wechat-dialog .el-dialog__title) {
-  color: #E0E7FF;
+:deep(.wechat-dialog .el-dialog__body) {
+  padding: 0;
+}
+
+:deep(.wechat-dialog .el-dialog__footer) {
+  padding: 0;
+  border-top: none;
+}
+
+:deep(.wechat-dialog .el-dialog__headerbtn) {
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+:deep(.wechat-dialog .el-dialog__headerbtn:hover) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+:deep(.wechat-dialog .el-dialog__headerbtn .el-dialog__close) {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 18px;
+}
+
+.wechat-dialog-content {
+  background: rgba(45, 55, 72, 0.98);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+}
+
+.wechat-dialog-header {
+  text-align: center;
+  padding: 32px 32px 24px;
+  background: linear-gradient(135deg, rgba(7, 193, 96, 0.2) 0%, rgba(5, 150, 105, 0.1) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.wechat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #07C160 0%, #059669 100%);
+  margin-bottom: 16px;
+  box-shadow: 0 8px 24px rgba(7, 193, 96, 0.4);
+}
+
+.wechat-icon svg {
+  width: 32px;
+  height: 32px;
+  color: white;
+}
+
+.wechat-dialog-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin: 0 0 8px 0;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.wechat-dialog-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  font-weight: 400;
 }
 
 .wechat-qrcode-container {
-  padding: 20px;
+  padding: 32px;
   text-align: center;
+  background: rgba(30, 41, 59, 0.7);
 }
 
 .qrcode-wrapper {
@@ -1596,37 +1984,168 @@ onUnmounted(() => {
   align-items: center;
 }
 
+.qrcode-image-wrapper {
+  position: relative;
+  display: inline-block;
+  padding: 12px;
+  background: #FFFFFF;
+  border-radius: 20px;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.3);
+}
+
 .wechat-qrcode {
+  display: block;
   width: 200px;
   height: 200px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  background: white;
+  border-radius: 12px;
+}
+
+.qrcode-scan-icon {
+  position: absolute;
+  bottom: -8px;
+  right: -8px;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #07C160 0%, #059669 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(7, 193, 96, 0.5);
+  animation: pulse-scan 2s ease-in-out infinite;
+}
+
+.qrcode-scan-icon svg {
+  width: 20px;
+  height: 20px;
+  color: white;
+}
+
+@keyframes pulse-scan {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 12px rgba(7, 193, 96, 0.5);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 6px 20px rgba(7, 193, 96, 0.6);
+  }
 }
 
 .qrcode-tip {
-  margin-top: 16px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.6);
+  margin-top: 20px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 400;
 }
 
 .qrcode-loading {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 40px 0;
+  gap: 16px;
+  padding: 50px 0;
 }
 
-.qrcode-loading .el-icon {
-  font-size: 32px;
-  color: #6366F1;
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #6366F1;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .qrcode-loading p {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.85);
   margin: 0;
+  font-weight: 400;
+}
+
+.wechat-dialog-footer {
+  padding: 20px 32px 24px;
+  background: rgba(30, 41, 59, 0.7);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.footer-tip {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+  font-weight: 400;
+}
+
+/* 浅色模式适配 */
+.login-page:not(.dark-theme) :deep(.wechat-dialog) {
+  background: transparent;
+}
+
+.login-page:not(.dark-theme) .wechat-dialog-content {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.15);
+}
+
+.login-page:not(.dark-theme) :deep(.wechat-dialog .el-dialog__headerbtn) {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.login-page:not(.dark-theme) :deep(.wechat-dialog .el-dialog__headerbtn:hover) {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.login-page:not(.dark-theme) :deep(.wechat-dialog .el-dialog__headerbtn .el-dialog__close) {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.login-page:not(.dark-theme) .wechat-dialog-header {
+  background: linear-gradient(135deg, rgba(7, 193, 96, 0.15) 0%, rgba(5, 150, 105, 0.08) 100%);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+.login-page:not(.dark-theme) .wechat-dialog-title {
+  color: #1E293B;
+  text-shadow: none;
+}
+
+.login-page:not(.dark-theme) .wechat-dialog-subtitle {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.login-page:not(.dark-theme) .wechat-qrcode-container {
+  background: rgba(248, 250, 252, 0.7);
+}
+
+.login-page:not(.dark-theme) .qrcode-image-wrapper {
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.15);
+}
+
+.login-page:not(.dark-theme) .qrcode-tip {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.login-page:not(.dark-theme) .qrcode-loading p {
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.login-page:not(.dark-theme) .wechat-dialog-footer {
+  background: rgba(248, 250, 252, 0.7);
+  border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+.login-page:not(.dark-theme) .footer-tip {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.login-page:not(.dark-theme) .loading-spinner {
+  border-color: rgba(99, 102, 241, 0.15);
+  border-top-color: #6366F1;
 }
 
 /* 动画 */
@@ -1963,5 +2482,89 @@ body.dark-theme {
   --el-text-color-regular: #f1f5f9;
   --el-border-color: #334155;
   --el-border-color-light: #334155;
+}
+
+/* ========== 移除 el-autocomplete 内置边框 ========== */
+/* 外层容器完全透明 */
+.login-page .el-input.autocomplete-input,
+.login-page .el-autocomplete.autocomplete-input {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* el-input__wrapper 完全透明 */
+.login-page .autocomplete-input .el-input__wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  height: 100% !important;
+}
+
+.login-page .autocomplete-input .el-input__wrapper:hover {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.login-page .autocomplete-input .el-input__wrapper.is-focus {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+/* el-input__inner 完全透明 */
+.login-page .autocomplete-input .el-input__inner {
+  color: #E0E7FF !important;
+  font-size: 15px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  height: 100% !important;
+}
+
+.login-page .autocomplete-input .el-input__inner:focus {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.login-page .autocomplete-input .el-input__inner::placeholder {
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* 隐藏前后缀图标 */
+.login-page .autocomplete-input .el-input__prefix,
+.login-page .autocomplete-input .el-input__suffix {
+  display: none !important;
+}
+
+/* 浅色模式 */
+.login-page:not(.dark-theme) .autocomplete-input .el-input__inner {
+  color: #1E293B !important;
+}
+
+.login-page:not(.dark-theme) .autocomplete-input .el-input__inner::placeholder {
+  color: rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ========== 微信弹窗亮度提升 ========== */
+.login-page .wechat-dialog .el-dialog {
+  background: rgba(45, 55, 72, 0.98) !important;
+}
+
+.login-page .wechat-dialog .el-dialog__body {
+  background: rgba(45, 55, 72, 0.98) !important;
+}
+
+/* 浅色模式微信弹窗 */
+.login-page:not(.dark-theme) .wechat-dialog .el-dialog {
+  background: rgba(255, 255, 255, 0.98) !important;
+}
+
+.login-page:not(.dark-theme) .wechat-dialog .el-dialog__body {
+  background: rgba(255, 255, 255, 0.98) !important;
 }
 </style>

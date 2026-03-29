@@ -774,12 +774,47 @@ defineExpose({
 .deep-reasoning-switch {
   margin-right: 12px;
   background: transparent !important;
+  position: relative;
+}
+
+/* 开关激活状态下的发光效果 */
+.internet-search-switch :deep(.el-switch.is-checked),
+.deep-reasoning-switch :deep(.el-switch.is-checked) {
+  position: relative;
+}
+
+.internet-search-switch :deep(.el-switch.is-checked)::before,
+.deep-reasoning-switch :deep(.el-switch.is-checked)::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: switch-pulse 2s ease-in-out infinite;
+}
+
+@keyframes switch-pulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
 }
 
 /* 开关容器 */
 .internet-search-switch :deep(.el-switch),
 .deep-reasoning-switch :deep(.el-switch) {
   background: transparent !important;
+  position: relative;
+  z-index: 1;
 }
 
 /* 开关标签文本 */
@@ -790,6 +825,8 @@ defineExpose({
   font-weight: 500;
   transition: var(--transition);
   background: transparent !important;
+  position: relative;
+  z-index: 1;
 }
 
 /* 开关激活时的文字颜色 - 使用 CSS 变量 */
@@ -798,6 +835,7 @@ defineExpose({
   color: var(--switch-active-text);
   font-weight: 600;
   background: transparent !important;
+  text-shadow: 0 0 20px rgba(139, 92, 246, 0.5);
 }
 
 /* 开关主体 - 使用 CSS 变量 */
@@ -835,17 +873,32 @@ defineExpose({
 
 .internet-search-switch :deep(.el-switch.is-checked .el-switch__core),
 .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: var(--switch-active-bg);
-  border-color: var(--switch-active-border);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%);
+  border-color: #7C3AED;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2), 0 0 15px rgba(139, 92, 246, 0.4);
+  animation: switch-on 0.3s ease-out;
+}
+
+@keyframes switch-on {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2), 0 0 15px rgba(139, 92, 246, 0.4);
+  }
 }
 
 .internet-search-switch :deep(.el-switch.is-checked .el-switch__core:after),
 .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core:after) {
   left: calc(100% - var(--switch-thumb-size) - 1px);
-  background-color: var(--card-background);
-  border-color: var(--border-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+  background-color: white;
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 /* 开关 hover 效果 - 使用 CSS 变量 */
@@ -857,24 +910,35 @@ defineExpose({
 
 .internet-search-switch:hover :deep(.el-switch.is-checked .el-switch__core),
 .deep-reasoning-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: rgba(139, 92, 246, 0.5);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 3px rgba(139, 92, 246, 0.15);
-  border-color: rgba(139, 92, 246, 0.7);
+  background: linear-gradient(135deg, #9771FA 0%, #7B6EF6 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 3px rgba(139, 92, 246, 0.25), 0 0 20px rgba(139, 92, 246, 0.5);
+  border-color: #8B5CF6;
 }
 
-/* 深色模式下的 hover 效果 */
-.dark-theme .internet-search-switch:hover :deep(.el-switch__core),
-.dark-theme .deep-reasoning-switch:hover :deep(.el-switch__core) {
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(167, 139, 250, 0.12);
-  border-color: rgba(167, 139, 250, 0.3);
-  background-color: var(--border-color);
+/* 深色模式下的样式增强 */
+.dark-theme .internet-search-switch :deep(.el-switch.is-checked .el-switch__core),
+.dark-theme .deep-reasoning-switch :deep(.el-switch.is-checked .el-switch__core) {
+  background: linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%);
+  border-color: #9771FA;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.25), 0 0 20px rgba(167, 139, 250, 0.5);
 }
 
 .dark-theme .internet-search-switch:hover :deep(.el-switch.is-checked .el-switch__core),
 .dark-theme .deep-reasoning-switch:hover :deep(.el-switch.is-checked .el-switch__core) {
-  background-color: rgba(167, 139, 250, 0.55);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(167, 139, 250, 0.18);
-  border-color: rgba(167, 139, 250, 0.75);
+  background: linear-gradient(135deg, #B794F6 0%, #9771FA 100%);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(167, 139, 250, 0.3), 0 0 25px rgba(167, 139, 250, 0.6);
+  border-color: #A78BFA;
+}
+
+.dark-theme .internet-search-switch:hover :deep(.el-switch__core),
+.dark-theme .deep-reasoning-switch:hover :deep(.el-switch__core) {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 3px rgba(167, 139, 250, 0.15);
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+.dark-theme .internet-search-switch :deep(.el-switch.is-checked)::before,
+.dark-theme .deep-reasoning-switch :deep(.el-switch.is-checked)::before {
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.2) 0%, transparent 70%);
 }
 
 /* ========== 响应式设计 ========== */
@@ -890,5 +954,120 @@ defineExpose({
   .model-selector {
     width: var(--selector-width-sm);
   }
+}
+</style>
+
+<!-- 非scoped样式：开关按钮视觉增强 -->
+<style>
+/* ========== 联网搜索/深度推理开关 - 强视觉反馈 ========== */
+
+/* 激活状态 - 渐变背景 + 发光效果 */
+.chat-input .internet-search-switch.el-switch.is-checked .el-switch__core,
+.chat-input .deep-reasoning-switch.el-switch.is-checked .el-switch__core {
+  background: linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%) !important;
+  border: 2px solid #7C3AED !important;
+  box-shadow:
+    0 0 0 4px rgba(139, 92, 246, 0.2),
+    0 0 20px rgba(139, 92, 246, 0.5),
+    inset 0 1px 2px rgba(255, 255, 255, 0.2) !important;
+  animation: switch-glow 2s ease-in-out infinite !important;
+}
+
+@keyframes switch-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 4px rgba(139, 92, 246, 0.2),
+      0 0 20px rgba(139, 92, 246, 0.5),
+      inset 0 1px 2px rgba(255, 255, 255, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(139, 92, 246, 0.3),
+      0 0 30px rgba(139, 92, 246, 0.7),
+      inset 0 1px 2px rgba(255, 255, 255, 0.3);
+  }
+}
+
+/* 激活状态 - 滑块变白色 */
+.chat-input .internet-search-switch.el-switch.is-checked .el-switch__core:after,
+.chat-input .deep-reasoning-switch.el-switch.is-checked .el-switch__core:after {
+  background: #ffffff !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* 激活状态 - 文字发光 */
+.chat-input .internet-search-switch.el-switch.is-checked .el-switch__label.is-active,
+.chat-input .deep-reasoning-switch.el-switch.is-checked .el-switch__label.is-active {
+  color: #8B5CF6 !important;
+  text-shadow: 0 0 10px rgba(139, 92, 246, 0.6) !important;
+}
+
+/* 关闭状态 - 灰色边框明显 */
+.chat-input .internet-search-switch .el-switch__core,
+.chat-input .deep-reasoning-switch .el-switch__core {
+  background: #e5e7eb !important;
+  border: 2px solid #d1d5db !important;
+}
+
+.chat-input .dark-theme .internet-search-switch .el-switch__core,
+.chat-input .dark-theme .deep-reasoning-switch .el-switch__core {
+  background: #374151 !important;
+  border: 2px solid #4b5563 !important;
+}
+
+/* 深色模式 - 激活状态 */
+.chat-input .dark-theme .internet-search-switch.el-switch.is-checked .el-switch__core,
+.chat-input .dark-theme .deep-reasoning-switch.el-switch.is-checked .el-switch__core {
+  background: linear-gradient(135deg, #A78BFA 0%, #8B5CF6 100%) !important;
+  border: 2px solid #9771FA !important;
+  box-shadow:
+    0 0 0 4px rgba(167, 139, 250, 0.25),
+    0 0 25px rgba(167, 139, 250, 0.6),
+    inset 0 1px 2px rgba(255, 255, 255, 0.15) !important;
+}
+
+@keyframes switch-glow-dark {
+  0%, 100% {
+    box-shadow:
+      0 0 0 4px rgba(167, 139, 250, 0.25),
+      0 0 25px rgba(167, 139, 250, 0.6),
+      inset 0 1px 2px rgba(255, 255, 255, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(167, 139, 250, 0.35),
+      0 0 35px rgba(167, 139, 250, 0.8),
+      inset 0 1px 2px rgba(255, 255, 255, 0.25);
+  }
+}
+
+.chat-input .dark-theme .internet-search-switch.el-switch.is-checked .el-switch__core,
+.chat-input .dark-theme .deep-reasoning-switch.el-switch.is-checked .el-switch__core {
+  animation: switch-glow-dark 2s ease-in-out infinite !important;
+}
+
+/* Hover 效果增强 */
+.chat-input .internet-search-switch:hover .el-switch__core,
+.chat-input .deep-reasoning-switch:hover .el-switch__core {
+  border-color: #8B5CF6 !important;
+}
+
+.chat-input .internet-search-switch:hover.el-switch.is-checked .el-switch__core,
+.chat-input .deep-reasoning-switch:hover.el-switch.is-checked .el-switch__core {
+  background: linear-gradient(135deg, #9771FA 0%, #7B6EF6 100%) !important;
+  box-shadow:
+    0 0 0 4px rgba(139, 92, 246, 0.3),
+    0 0 25px rgba(139, 92, 246, 0.6),
+    inset 0 1px 2px rgba(255, 255, 255, 0.25) !important;
+}
+
+.chat-input .dark-theme .internet-search-switch:hover.el-switch.is-checked .el-switch__core,
+.chat-input .dark-theme .deep-reasoning-switch:hover.el-switch.is-checked .el-switch__core {
+  background: linear-gradient(135deg, #B794F6 0%, #9771FA 100%) !important;
+  box-shadow:
+    0 0 0 4px rgba(167, 139, 250, 0.35),
+    0 0 30px rgba(167, 139, 250, 0.7),
+    inset 0 1px 2px rgba(255, 255, 255, 0.2) !important;
 }
 </style>
